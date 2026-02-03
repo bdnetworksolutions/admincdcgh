@@ -3,27 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CDC Admin Mobile</title>
+    <title>CDC Command Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap');
+        
+        body { 
+            background-color: #f1f5f9; 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            margin: 0;
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+        }
+        
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .action-card { 
+            background: white; 
+            border-radius: 1.5rem; 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.1s;
+        }
+        
+        .action-card:active { transform: scale(0.98); }
+
+        @keyframes slideUp { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .animate-slide { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        body { -webkit-tap-highlight-color: transparent; font-family: ui-sans-serif, system-ui, sans-serif; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-900">
+<body>
     <div id="root"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, onSnapshot, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, query, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        
+        window.FirebaseSDK = { 
+            initializeApp, getAuth, getFirestore, 
+            collection, query, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, orderBy, writeBatch
+        };
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const icons = {
+                copy: (
+                    <React.Fragment>
+                        <path d="M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.242a2 2 0 0 0-.602-1.43L16.083 2.57A2 2 0 0 0 14.685 2H10a2 2 0 0 0-2 2Z" />
+                        <path d="M16 18v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2" />
+                    </React.Fragment>
+                ),
+                check: <path d="M20 6 9 17l-5-5" />,
+                user: (
+                    <React.Fragment>
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </React.Fragment>
+                ),
+                zap: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
+                refresh: <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8m0-5v5h-5" />,
+                history: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8m0-5v5h5" />,
+                clock: (
+                    <React.Fragment>
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </React.Fragment>
+                ),
+                trash: <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />,
+                trending: (
+                    <React.Fragment>
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                        <polyline points="17 6 23 6 23 12" />
+                    </React.Fragment>
+                ),
+                volume: (
+                    <React.Fragment>
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    </React.Fragment>
+                ),
+                mute: (
+                    <React.Fragment>
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <line x1="23" y1="9" x2="17" y2="15" />
+                        <line x1="17" y1="9" x2="23" y2="15" />
+                    </React.Fragment>
+                )
+            };
+            return (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name] || <circle cx="12" cy="12" r="10" />}
+                </svg>
+            );
+        };
 
         const firebaseConfig = {
             apiKey: "AIzaSyBX99Y1tsrRSpm0fdpm70GFjlw9G4Kt9_E",
@@ -31,343 +122,339 @@
             projectId: "cheap-data-center",
             storageBucket: "cheap-data-center.firebasestorage.app",
             messagingSenderId: "397497828779",
-            appId: "1:397497828779:web:7db21bcfb636a0bb24feee"
+            appId: "1:397497828779:web:7db21bcfb636a0bb24feee",
         };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        window.db = getFirestore(app);
-        window.auth = auth;
-        window.signInAnonymously = signInAnonymously; 
-        window.fb = { collection, doc, onSnapshot, updateDoc, query, orderBy };
-    </script>
-
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-        const appId = 'cheap-data-center';
-
-        const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
-        };
+        const appId = "cheap-data-center";
+        const BASE_COST_PER_GB = 3.90;
 
         function App() {
-            const [user, setUser] = useState(null);
             const [orders, setOrders] = useState([]);
-            const [customers, setCustomers] = useState([]);
-            const [config, setConfig] = useState({ notification: "" });
-            const [isAuthenticated, setIsAuthenticated] = useState(false);
-            const [passcode, setPasscode] = useState("");
-            const [activeTab, setActiveTab] = useState('overview');
-            const [orderFilter, setOrderFilter] = useState('pending');
-            const [selectedUser, setSelectedUser] = useState(null);
-            const [bcText, setBcText] = useState("");
-            const [expandedOrder, setExpandedOrder] = useState(null);
+            const [users, setUsers] = useState([]);
+            const [stats, setStats] = useState({ totalProfit: 0 });
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('pending');
+            const [copyFeedback, setCopyFeedback] = useState(null);
+            const [isMuted, setIsMuted] = useState(false);
+            
+            const audioRef = useRef(null);
+            const prevPendingCount = useRef(0);
 
+            // Audio Initialization for Mobile
             useEffect(() => {
-                const unsubscribe = window.auth.onAuthStateChanged(async (u) => {
-                    if (!u) {
-                        try { await window.signInAnonymously(window.auth); } catch (err) { console.error("Auth error:", err); }
-                    } else { setUser(u); }
-                });
-                return () => unsubscribe();
+                audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+                audioRef.current.load();
             }, []);
 
+            // Handle Back Button Logic
             useEffect(() => {
-                if (!user) return;
-                const { collection, doc, onSnapshot } = window.fb;
-                
-                const ordersRef = collection(window.db, 'artifacts', appId, 'public', 'data', 'orders');
-                const unsubOrders = onSnapshot(ordersRef, (s) => {
-                    const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
-                    setOrders(data.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
-                }, (err) => console.error("Firestore Orders Error:", err));
+                const handlePopState = (event) => {
+                    if (event.state && event.state.tab) {
+                        setActiveTab(event.state.tab);
+                    } else {
+                        setActiveTab('pending');
+                    }
+                };
+                window.addEventListener('popstate', handlePopState);
+                window.history.replaceState({ tab: 'pending' }, '');
+                return () => window.removeEventListener('popstate', handlePopState);
+            }, []);
 
-                const unsubUsers = onSnapshot(collection(window.db, 'artifacts', appId, 'public', 'data', 'users'), (s) => {
-                    setCustomers(s.docs.map(d => ({ id: d.id, ...d.data() })));
-                });
-
-                const unsubConfig = onSnapshot(doc(window.db, 'artifacts', appId, 'public', 'data', 'systemConfig', 'main'), (s) => {
-                    if (s.exists()) setConfig(s.data());
-                });
-
-                return () => { unsubOrders(); unsubUsers(); unsubConfig(); };
-            }, [user]);
-
-            const filteredOrders = useMemo(() => {
-                if (orderFilter === 'pending') {
-                    return orders.filter(o => o.status !== 'delivered' && o.status !== 'completed');
+            const changeTab = (tabId) => {
+                if (tabId !== activeTab) {
+                    setActiveTab(tabId);
+                    window.history.pushState({ tab: tabId }, '', `#${tabId}`);
                 }
-                return orders.filter(o => o.status === 'delivered' || o.status === 'completed');
-            }, [orders, orderFilter]);
-
-            const updateStatus = async (id, status) => {
-                const ref = window.fb.doc(window.db, 'artifacts', appId, 'public', 'data', 'orders', id);
-                await window.fb.updateDoc(ref, { status });
             };
 
-            const copyToClipboard = (text) => {
-                if (!text || text === 'N/A') return;
-                const el = document.createElement('textarea');
-                el.value = text;
-                document.body.appendChild(el);
-                el.select();
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    if (window.FirebaseSDK) {
+                        initFirebase();
+                        clearInterval(interval);
+                    }
+                }, 100);
+                return () => clearInterval(interval);
+            }, []);
+
+            const initFirebase = () => {
+                const fb = window.FirebaseSDK;
+                const app = fb.initializeApp(firebaseConfig);
+                const db = fb.getFirestore(app);
+
+                // Listen for Orders
+                const q = fb.query(fb.collection(db, 'artifacts', appId, 'public', 'data', 'orders'), fb.orderBy('timestamp', 'desc'));
+                fb.onSnapshot(q, (snap) => {
+                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const currentPending = data.filter(o => o.status === 'pending');
+                    
+                    // Sound Alert Logic
+                    if (!loading && currentPending.length > prevPendingCount.current) {
+                        if (!isMuted && audioRef.current) {
+                            audioRef.current.play().catch(e => console.log("Audio play blocked: tap anywhere on the screen first."));
+                        }
+                    }
+                    
+                    prevPendingCount.current = currentPending.length;
+                    setOrders(data);
+                    setLoading(false);
+                });
+
+                fb.onSnapshot(fb.collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snap) => {
+                    setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+
+                fb.onSnapshot(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), (doc) => {
+                    if (doc.exists()) {
+                        setStats(doc.data());
+                    } else {
+                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
+                    }
+                });
+            };
+
+            const isMonday = () => {
+                const now = new Date();
+                return now.getDay() === 1; // 1 = Monday
+            };
+
+            const markDone = async (order) => {
+                const fb = window.FirebaseSDK;
+                const db = fb.getFirestore();
+                const gbs = parseFloat(order.bundleName) || 1;
+                const profit = order.price - (BASE_COST_PER_GB * gbs);
+                const newTotalProfit = (stats.totalProfit || 0) + profit;
+
+                const batch = fb.writeBatch(db);
+                const orderRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id);
+                batch.update(orderRef, { status: 'delivered', fulfilledAt: Date.now() });
+
+                const statsRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin');
+                batch.update(statsRef, { totalProfit: newTotalProfit });
+
+                await batch.commit();
+            };
+
+            const resetProfit = async () => {
+                const fb = window.FirebaseSDK;
+                const db = fb.getFirestore();
+                await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
+            };
+
+            const deleteOrder = async (id) => {
+                const fb = window.FirebaseSDK;
+                const db = fb.getFirestore();
+                await fb.deleteDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', id));
+            };
+
+            const clearAllHistory = async () => {
+                const fb = window.FirebaseSDK;
+                const db = fb.getFirestore();
+                const historyOrders = orders.filter(o => o.status === 'delivered');
+                for (const order of historyOrders) {
+                    await fb.deleteDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id));
+                }
+            };
+
+            const handleCopy = (text, id) => {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
                 document.execCommand('copy');
-                document.body.removeChild(el);
-                if (navigator.vibrate) navigator.vibrate(50);
+                setCopyFeedback(id);
+                setTimeout(() => setCopyFeedback(null), 2000);
+                document.body.removeChild(textArea);
             };
 
-            if (!isAuthenticated) return (
-                <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6">
-                    <div className="mb-8 text-center">
-                        <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-xl shadow-indigo-500/20">
-                            <Icon name="shield-check" size={32} />
-                        </div>
-                        <h2 className="text-xl font-black tracking-tight italic">CDC ADMIN</h2>
-                        <p className="text-slate-500 text-xs font-bold mt-2 uppercase tracking-widest">Secure Access Required</p>
-                    </div>
-                    <div className="flex gap-4 mb-10">
-                        {[0,1,2,3].map(i => <div key={i} className={`w-3 h-3 rounded-full border-2 transition-all duration-300 ${passcode.length > i ? 'bg-indigo-500 border-indigo-500 scale-125' : 'border-slate-800'}`} />)}
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                        {[1,2,3,4,5,6,7,8,9,'C',0,'OK'].map(n => (
-                            <button key={n} onClick={() => {
-                                if(n === 'C') return setPasscode("");
-                                if(n === 'OK') return;
-                                const next = passcode + n;
-                                if (next.length <= 4) setPasscode(next);
-                                if (next === "1234") setIsAuthenticated(true);
-                                else if (next.length === 4) setPasscode("");
-                            }} className="w-16 h-16 rounded-2xl bg-white/5 active:bg-indigo-600 text-xl font-bold transition-all flex items-center justify-center select-none">
-                                {n === 'C' ? <Icon name="delete" /> : n}
-                            </button>
-                        ))}
+            const formatTime = (ts) => {
+                if (!ts) return "N/A";
+                const date = new Date(ts);
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            };
+
+            const formatDateFull = (ts) => {
+                if (!ts) return "N/A";
+                const date = new Date(ts);
+                return date.toLocaleDateString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+            }
+
+            if (loading) return (
+                <div className="min-h-screen flex items-center justify-center bg-indigo-600">
+                    <div className="text-white text-center">
+                        <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+                        <p className="font-black uppercase tracking-widest text-[10px]">Syncing Command...</p>
                     </div>
                 </div>
             );
 
+            const pending = orders.filter(o => o.status === 'pending');
+            const history = orders.filter(o => o.status === 'delivered');
+
             return (
-                <div className="flex flex-col h-screen bg-slate-50 overflow-hidden">
-                    <header className="bg-slate-950 text-white p-5 pt-12 pb-5 flex justify-between items-center shrink-0 shadow-2xl">
-                        <div>
-                            <h1 className="font-black italic tracking-tighter text-lg uppercase leading-none">CDC Control</h1>
-                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">Administrator Portal</p>
+                <div className="pb-32 min-h-screen bg-slate-50 overflow-x-hidden" onClick={() => { if(audioRef.current) audioRef.current.play().then(() => audioRef.current.pause()).catch(() => {})}}>
+                    {/* Responsive Header */}
+                    <div className="bg-slate-900 text-white px-5 sm:px-8 pt-10 pb-20 rounded-b-[2.5rem] shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                            <Icon name="zap" size={120} />
                         </div>
-                        <div className="bg-indigo-600/20 px-3 py-1 rounded-full border border-indigo-500/30 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                            <span className="text-[10px] font-black text-indigo-400">LIVE FEED</span>
-                        </div>
-                    </header>
-
-                    <main className="flex-1 overflow-y-auto p-4 pb-32 no-scrollbar">
-                        {activeTab === 'overview' && (
-                            <div className="space-y-4 animate-fade">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div onClick={() => setActiveTab('users')} className="bg-white p-6 rounded-[2rem] border shadow-sm active:scale-95 transition-transform">
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Users</p>
-                                        <p className="text-3xl font-black text-indigo-600 leading-none">{customers.length}</p>
+                        <div className="relative z-10 max-w-lg mx-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse-slow"></div>
+                                        <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Live Command Suite</p>
                                     </div>
-                                    <div onClick={() => { setActiveTab('orders'); setOrderFilter('pending'); }} className="bg-white p-6 rounded-[2rem] border shadow-sm active:scale-95 transition-transform">
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Pending</p>
-                                        <p className="text-3xl font-black text-amber-500 leading-none">{orders.filter(o => o.status !== 'delivered' && o.status !== 'completed').length}</p>
-                                    </div>
+                                    <h1 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic">CDC ADMIN</h1>
                                 </div>
-                                
-                                <div className="bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl shadow-indigo-200">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <Icon name="activity" size={24} />
-                                        <span className="text-[10px] font-black bg-white/20 px-2 py-1 rounded-lg">SYSTEM STATUS</span>
-                                    </div>
-                                    <p className="text-xs font-bold opacity-80 uppercase tracking-widest">Recent Activity</p>
-                                    <p className="text-xl font-black mt-1">
-                                        {orders.length > 0 ? `Last order ${new Date(orders[0].timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : "No recent activity"}
-                                    </p>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setIsMuted(!isMuted)} 
+                                        className={`p-3 rounded-2xl active:scale-90 transition-all ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'}`}
+                                    >
+                                        <Icon name={isMuted ? "mute" : "volume"} size={18} />
+                                    </button>
+                                    <button onClick={() => window.location.reload()} className="p-3 bg-white/10 rounded-2xl active:scale-90 transition-all">
+                                        <Icon name="refresh" size={18} />
+                                    </button>
                                 </div>
                             </div>
+
+                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                                <div className="bg-indigo-600 p-4 sm:p-5 rounded-3xl shadow-xl shadow-indigo-500/20">
+                                    <p className="text-[9px] font-black text-indigo-200 uppercase mb-1">Queue</p>
+                                    <p className="text-2xl sm:text-3xl font-black mono">{pending.length}</p>
+                                </div>
+                                <div className="bg-slate-800 p-4 sm:p-5 rounded-3xl border border-white/5">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Profit (GH₵)</p>
+                                    <p className="text-2xl sm:text-3xl font-black mono text-emerald-400">{stats.totalProfit?.toFixed(2)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Responsive Tab Bar */}
+                    <div className="px-5 sm:px-8 -mt-10 flex gap-2 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
+                        {[
+                            { id: 'pending', label: 'Processing', icon: 'zap' },
+                            { id: 'stats', label: 'Profit', icon: 'trending' },
+                            { id: 'history', label: 'History', icon: 'history' },
+                            { id: 'users', label: 'Users', icon: 'user' }
+                        ].map(tab => (
+                            <button 
+                                key={tab.id}
+                                onClick={() => changeTab(tab.id)}
+                                className={`flex items-center gap-2 px-5 py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md shrink-0 active:scale-95 ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}
+                            >
+                                <Icon name={tab.icon} size={14} />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <main className="mt-8 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
+                        {activeTab === 'pending' && (
+                            pending.length === 0 ? (
+                                <div className="text-center py-20 opacity-30 font-bold italic text-sm">No pending orders.</div>
+                            ) : (
+                                pending.map(order => (
+                                    <div key={order.id} className="action-card p-5 sm:p-6 animate-slide border-l-8 border-indigo-600">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex-1 pr-2">
+                                                <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-2 py-1 rounded uppercase">{order.bundleName}</span>
+                                                <h3 className="text-xl sm:text-2xl font-black mono mt-2 break-all">{order.recipientNumber}</h3>
+                                                <p className="text-[9px] text-slate-400 font-bold mt-1">Requested at {formatTime(order.timestamp)}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleCopy(order.recipientNumber, order.id)}
+                                                className={`p-4 rounded-2xl active:scale-90 transition-all shrink-0 ${copyFeedback === order.id ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}
+                                            >
+                                                <Icon name={copyFeedback === order.id ? 'check' : 'copy'} size={18} />
+                                            </button>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <div className="bg-slate-50 p-3 rounded-xl flex-1">
+                                                <p className="text-[8px] font-bold uppercase text-slate-400">Total Price</p>
+                                                <p className="font-black text-slate-900 text-sm">₵{order.price?.toFixed(2)}</p>
+                                            </div>
+                                            <button onClick={() => markDone(order)} className="bg-emerald-600 text-white px-8 sm:px-10 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-200 active:scale-95 transition-all">Mark Done</button>
+                                        </div>
+                                    </div>
+                                ))
+                            )
                         )}
 
-                        {activeTab === 'orders' && (
-                            <div className="space-y-4 animate-fade">
-                                <div className="flex bg-slate-200/50 p-1.5 rounded-2xl gap-1">
-                                    <button onClick={() => setOrderFilter('pending')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${orderFilter === 'pending' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>
-                                        Pending ({orders.filter(o => o.status !== 'delivered' && o.status !== 'completed').length})
-                                    </button>
-                                    <button onClick={() => setOrderFilter('completed')} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${orderFilter === 'completed' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>
-                                        History ({orders.filter(o => o.status === 'delivered' || o.status === 'completed').length})
-                                    </button>
-                                </div>
-
-                                {filteredOrders.length === 0 && (
-                                    <div className="text-center py-20 opacity-30">
-                                        <Icon name="inbox" size={48} className="mx-auto mb-2" />
-                                        <p className="font-black uppercase text-sm">No {orderFilter} orders</p>
+                        {activeTab === 'stats' && (
+                            <div className="space-y-4">
+                                <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] shadow-sm border border-slate-200 text-center">
+                                    <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Icon name="trending" size={28} />
                                     </div>
-                                )}
-
-                                {filteredOrders.map(order => {
-                                    const searchInDoc = (keys) => {
-                                        for (let key of keys) {
-                                            if (order[key] !== undefined && order[key] !== null && order[key] !== '') return order[key];
-                                        }
-                                        return null;
-                                    };
-
-                                    const recipient = searchInDoc(['phoneNumber', 'phone', 'recipient', 'dataRecipient', 'target', 'number', 'reciever']) || 'N/A';
-                                    const dataSize = searchInDoc(['amount', 'dataSize', 'size', 'bundleSize', 'plan', 'bundle', 'package']) || 'N/A';
-                                    const network = searchInDoc(['network', 'service', 'provider', 'carrier']) || 'DATA';
-                                    const planName = searchInDoc(['planName', 'serviceName', 'bundleName', 'title']) || 'Data Purchase';
+                                    <h2 className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-1">Weekly Net Profit</h2>
+                                    <p className="text-4xl sm:text-5xl font-black text-slate-900 mb-8 mono">₵{stats.totalProfit?.toFixed(2)}</p>
                                     
-                                    const isDelivered = order.status === 'delivered' || order.status === 'completed';
-
-                                    return (
-                                        <div key={order.id} className={`bg-white p-5 rounded-[2rem] border shadow-sm space-y-4 transition-all ${isDelivered ? 'border-emerald-100 bg-slate-50/50 opacity-80' : 'border-l-4 border-l-indigo-500'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <p className="font-black text-lg leading-tight text-slate-900">{planName}</p>
-                                                        <span className="bg-indigo-50 text-indigo-600 text-[9px] font-black px-2 py-0.5 rounded-md uppercase">{network}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 text-slate-400">
-                                                        <Icon name="clock" size={12} />
-                                                        <p className="text-[10px] font-bold uppercase tracking-tighter">
-                                                            {order.timestamp ? new Date(order.timestamp).toLocaleString() : 'Just now'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase border ${isDelivered ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'}`}>
-                                                    {isDelivered && <Icon name="check" size={10} />}
-                                                    {order.status || 'pending'}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div className="bg-white p-4 rounded-2xl border border-slate-100 active:bg-slate-50 relative group" onClick={() => copyToClipboard(recipient)}>
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Recipient</p>
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); copyToClipboard(recipient); }}
-                                                            className="p-1 hover:bg-indigo-50 rounded-md transition-colors"
-                                                        >
-                                                            <Icon name="copy" size={14} className="text-indigo-600" />
-                                                        </button>
-                                                    </div>
-                                                    <p className="font-black text-indigo-600 text-base tracking-tight">{recipient}</p>
-                                                </div>
-                                                <div className="bg-white p-4 rounded-2xl border border-slate-100">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-widest">Bundle</p>
-                                                    <p className="font-black text-slate-700 text-base uppercase">{dataSize}</p>
-                                                </div>
-                                            </div>
-
-                                            {/* RAW DATA DRAWER */}
-                                            <div className="border-t border-slate-100 pt-3">
-                                                <button 
-                                                    onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
-                                                    className="flex items-center gap-1 text-[10px] font-black text-slate-400 uppercase tracking-widest"
-                                                >
-                                                    <Icon name={expandedOrder === order.id ? "chevron-up" : "chevron-down"} size={12} />
-                                                    {expandedOrder === order.id ? "Hide Raw Data" : "View Raw Data"}
-                                                </button>
-                                                
-                                                {expandedOrder === order.id && (
-                                                    <div className="mt-3 p-3 bg-slate-900 rounded-xl overflow-x-auto">
-                                                        <pre className="text-[10px] font-mono text-emerald-400 leading-relaxed">
-                                                            {JSON.stringify(order, (key, value) => (key === 'id' || key === 'timestamp') ? undefined : value, 2)}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {!isDelivered && (
-                                                <button 
-                                                    onClick={() => updateStatus(order.id, 'delivered')} 
-                                                    className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm active:scale-95 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
-                                                >
-                                                    <Icon name="check-circle" size={18} /> Confirm Delivery
-                                                </button>
-                                            )}
+                                    {isMonday() ? (
+                                        <button 
+                                            onClick={() => { if(confirm("Monday confirmed. Reset profit to zero?")) resetProfit() }}
+                                            className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-slate-200"
+                                        >
+                                            Reset Profit for New Week
+                                        </button>
+                                    ) : (
+                                        <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Reset available every Monday by 6:00 AM</p>
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                </div>
                             </div>
                         )}
 
-                        {activeTab === 'users' && (
-                            <div className="space-y-3 animate-fade">
-                                <h2 className="text-xl font-black mb-4 px-2">Client Database</h2>
-                                {customers.map(c => (
-                                    <div key={c.id} onClick={() => setSelectedUser(c)} className="bg-white p-4 rounded-2xl border flex items-center gap-4 active:bg-slate-50 transition-colors shadow-sm">
-                                        <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 font-black text-lg">
-                                            {c.displayName?.charAt(0) || 'U'}
+                        {activeTab === 'history' && (
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center mb-2 px-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completed Orders</p>
+                                    <button onClick={clearAllHistory} className="text-[9px] font-black text-red-500 uppercase active:underline">Clear All</button>
+                                </div>
+                                {history.map(order => (
+                                    <div key={order.id} className="bg-white p-5 rounded-[2rem] flex flex-col gap-3 border border-slate-200 shadow-sm overflow-hidden relative">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-2 py-1 rounded-lg uppercase">Delivered</span>
+                                                <button onClick={() => deleteOrder(order.id)} className="p-2 text-slate-200 hover:text-red-500 active:scale-90">
+                                                    <Icon name="trash" size={14} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-black truncate text-slate-900">{c.displayName || 'Anonymous'}</p>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{c.email || 'No email'}</p>
+                                        <div className="bg-slate-50 p-3 rounded-2xl flex items-center gap-2 border border-slate-100">
+                                            <Icon name="clock" size={10} className="text-slate-400" />
+                                            <p className="text-[8px] font-black text-slate-500 uppercase">Fulfilled: {formatDateFull(order.fulfilledAt || order.timestamp)}</p>
                                         </div>
-                                        <Icon name="chevron-right" size={16} className="text-slate-300" />
                                     </div>
                                 ))}
                             </div>
                         )}
 
-                        {activeTab === 'broadcast' && (
-                            <div className="space-y-4 animate-fade">
-                                <h2 className="text-xl font-black mb-4 px-2">Global Broadcast</h2>
-                                <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Notification Text</p>
-                                    <textarea className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl h-32 mb-4 font-bold text-sm focus:border-indigo-500 outline-none transition-all" placeholder="Type message for all users..." value={bcText} onChange={e => setBcText(e.target.value)} />
-                                    <button onClick={async () => {
-                                        if(!bcText) return;
-                                        const ref = window.fb.doc(window.db, 'artifacts', appId, 'public', 'data', 'systemConfig', 'main');
-                                        await window.fb.updateDoc(ref, { notification: bcText });
-                                        setBcText("");
-                                    }} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black active:scale-95 transition-all shadow-lg shadow-indigo-100">Update All Users</button>
-                                </div>
+                        {activeTab === 'users' && (
+                            <div className="space-y-3">
+                                {users.map(u => (
+                                    <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-200 active:bg-slate-50 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center font-black text-sm uppercase">{u.name?.[0] || 'U'}</div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-sm truncate max-w-[120px]">{u.name || 'User'}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 mono">{u.phone}</p>
+                                            </div>
+                                        </div>
+                                        <p className="font-black text-emerald-600 text-sm shrink-0">₵{u.walletBalance?.toFixed(2)}</p>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </main>
-
-                    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-4 flex justify-between items-center z-40 pb-8 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
-                        <button onClick={() => setActiveTab('overview')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'overview' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
-                            <Icon name="layout" /><span className="text-[9px] font-black uppercase">Home</span>
-                        </button>
-                        <button onClick={() => { setActiveTab('orders'); setOrderFilter('pending'); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'orders' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
-                            <div className="relative">
-                                <Icon name="shopping-cart" />
-                                {orders.filter(o => o.status !== 'delivered' && o.status !== 'completed').length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full border border-white"></span>}
-                            </div>
-                            <span className="text-[9px] font-black uppercase">Orders</span>
-                        </button>
-                        <button onClick={() => setActiveTab('users')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'users' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
-                            <Icon name="users" /><span className="text-[9px] font-black uppercase">Users</span>
-                        </button>
-                        <button onClick={() => setActiveTab('broadcast')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'broadcast' ? 'text-indigo-600 scale-110' : 'text-slate-400'}`}>
-                            <Icon name="megaphone" /><span className="text-[9px] font-black uppercase">Alerts</span>
-                        </button>
-                    </nav>
-
-                    {selectedUser && (
-                        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 p-6 flex items-end">
-                            <div className="bg-white w-full rounded-[3rem] p-8 pb-12 relative animate-fade">
-                                <button onClick={() => setSelectedUser(null)} className="absolute -top-16 left-1/2 -translate-x-1/2 bg-white/10 p-4 rounded-full text-white active:scale-90 transition-transform"><Icon name="x" size={24} /></button>
-                                <div className="text-center mb-8">
-                                    <div className="w-24 h-24 bg-indigo-600 rounded-[2.5rem] mx-auto flex items-center justify-center text-white text-4xl font-black mb-4 shadow-2xl shadow-indigo-200">{selectedUser.displayName?.charAt(0) || 'U'}</div>
-                                    <h3 className="text-2xl font-black text-slate-900">{selectedUser.displayName || 'Anonymous User'}</h3>
-                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{selectedUser.email || 'No email provided'}</p>
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="bg-slate-50 p-6 rounded-3xl flex justify-between items-center border border-slate-100">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Balance</p>
-                                            <p className="text-3xl font-black text-indigo-600 tracking-tight">₦{selectedUser.walletBalance || 0}</p>
-                                        </div>
-                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-indigo-600"><Icon name="wallet" /></div>
-                                    </div>
-                                    <button onClick={() => setSelectedUser(null)} className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black mt-4 shadow-xl active:scale-95 transition-all">Close Profile</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             );
         }
