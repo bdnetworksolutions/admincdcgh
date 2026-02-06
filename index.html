@@ -131,7 +131,7 @@
         function App() {
             const [orders, setOrders] = useState([]);
             const [users, setUsers] = useState([]);
-            const [stats, setStats] = useState({ totalProfit: 0 });
+            const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0 });
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('pending');
             const [copyFeedback, setCopyFeedback] = useState(null);
@@ -208,7 +208,7 @@
                     if (doc.exists()) {
                         setStats(doc.data());
                     } else {
-                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
+                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0 });
                     }
                 });
             };
@@ -218,19 +218,34 @@
                 return now.getDay() === 1; // 1 = Monday
             };
 
+            const markProcessing = async (orderId) => {
+                const fb = window.FirebaseSDK;
+                const db = fb.getFirestore();
+                await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { 
+                    status: 'processing',
+                    processedAt: Date.now()
+                });
+            };
+
             const markDone = async (order) => {
                 const fb = window.FirebaseSDK;
                 const db = fb.getFirestore();
                 const gbs = parseFloat(order.bundleName) || 1;
-                const profit = order.price - (BASE_COST_PER_GB * gbs);
+                const cost = BASE_COST_PER_GB * gbs;
+                const profit = order.price - cost;
+                
                 const newTotalProfit = (stats.totalProfit || 0) + profit;
+                const newDailyUsed = (stats.dailyAmountUsed || 0) + cost;
 
                 const batch = fb.writeBatch(db);
                 const orderRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id);
                 batch.update(orderRef, { status: 'delivered', fulfilledAt: Date.now() });
 
                 const statsRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin');
-                batch.update(statsRef, { totalProfit: newTotalProfit });
+                batch.update(statsRef, { 
+                    totalProfit: newTotalProfit,
+                    dailyAmountUsed: newDailyUsed
+                });
 
                 await batch.commit();
             };
@@ -239,6 +254,12 @@
                 const fb = window.FirebaseSDK;
                 const db = fb.getFirestore();
                 await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
+            };
+
+            const resetDailyUsage = async () => {
+                const fb = window.FirebaseSDK;
+                const db = fb.getFirestore();
+                await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { dailyAmountUsed: 0 });
             };
 
             const deleteOrder = async (id) => {
@@ -289,6 +310,7 @@
             );
 
             const pending = orders.filter(o => o.status === 'pending');
+            const processing = orders.filter(o => o.status === 'processing');
             const history = orders.filter(o => o.status === 'delivered');
 
             return (
@@ -336,9 +358,9 @@
                     {/* Responsive Tab Bar */}
                     <div className="px-5 sm:px-8 -mt-10 flex gap-2 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
                         {[
-                            { id: 'pending', label: 'Processing', icon: 'zap' },
-                            { id: 'stats', label: 'Profit', icon: 'trending' },
+                            { id: 'pending', label: 'Incoming', icon: 'zap' },
                             { id: 'history', label: 'History', icon: 'history' },
+                            { id: 'stats', label: 'Stats', icon: 'trending' },
                             { id: 'users', label: 'Users', icon: 'user' }
                         ].map(tab => (
                             <button 
@@ -348,6 +370,7 @@
                             >
                                 <Icon name={tab.icon} size={14} />
                                 {tab.label}
+                                {tab.id === 'pending' && pending.length > 0 && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
                             </button>
                         ))}
                     </div>
@@ -355,7 +378,7 @@
                     <main className="mt-8 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
                         {activeTab === 'pending' && (
                             pending.length === 0 ? (
-                                <div className="text-center py-20 opacity-30 font-bold italic text-sm">No pending orders.</div>
+                                <div className="text-center py-20 opacity-30 font-bold italic text-sm">No new orders.</div>
                             ) : (
                                 pending.map(order => (
                                     <div key={order.id} className="action-card p-5 sm:p-6 animate-slide border-l-8 border-indigo-600">
@@ -372,69 +395,117 @@
                                                 <Icon name={copyFeedback === order.id ? 'check' : 'copy'} size={18} />
                                             </button>
                                         </div>
-                                        <div className="flex gap-3">
-                                            <div className="bg-slate-50 p-3 rounded-xl flex-1">
-                                                <p className="text-[8px] font-bold uppercase text-slate-400">Total Price</p>
-                                                <p className="font-black text-slate-900 text-sm">₵{order.price?.toFixed(2)}</p>
-                                            </div>
-                                            <button onClick={() => markDone(order)} className="bg-emerald-600 text-white px-8 sm:px-10 py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg shadow-emerald-200 active:scale-95 transition-all">Mark Done</button>
-                                        </div>
+                                        <button 
+                                            onClick={() => markProcessing(order.id)} 
+                                            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all"
+                                        >
+                                            Mark Processing & Move to History
+                                        </button>
                                     </div>
                                 ))
                             )
                         )}
 
+                        {activeTab === 'history' && (
+                            <div className="space-y-6">
+                                {/* In Progress Section */}
+                                {processing.length > 0 && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 px-1">
+                                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">In Progress ({processing.length})</p>
+                                        </div>
+                                        {processing.map(order => (
+                                            <div key={order.id} className="bg-white p-5 rounded-[2rem] border-2 border-amber-200 shadow-sm overflow-hidden animate-slide">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="flex-1">
+                                                        <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleCopy(order.recipientNumber, order.id)}
+                                                        className={`p-3 rounded-xl active:scale-90 transition-all shrink-0 ${copyFeedback === order.id ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}
+                                                    >
+                                                        <Icon name={copyFeedback === order.id ? 'check' : 'copy'} size={14} />
+                                                    </button>
+                                                </div>
+                                                <button 
+                                                    onClick={() => markDone(order)} 
+                                                    className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 transition-all"
+                                                >
+                                                    Mark Done
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Completed Section */}
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center mb-2 px-1">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completed Orders</p>
+                                        <button onClick={clearAllHistory} className="text-[9px] font-black text-red-500 uppercase active:underline">Clear All</button>
+                                    </div>
+                                    {history.length === 0 && processing.length === 0 && (
+                                        <div className="text-center py-20 opacity-30 font-bold italic text-sm">No history records.</div>
+                                    )}
+                                    {history.map(order => (
+                                        <div key={order.id} className="bg-white p-5 rounded-[2rem] flex flex-col gap-3 border border-slate-200 shadow-sm overflow-hidden relative">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-2 py-1 rounded-lg uppercase">Delivered</span>
+                                                    <button onClick={() => deleteOrder(order.id)} className="p-2 text-slate-200 hover:text-red-500 active:scale-90">
+                                                        <Icon name="trash" size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 p-3 rounded-2xl flex items-center gap-2 border border-slate-100">
+                                                <Icon name="clock" size={10} className="text-slate-400" />
+                                                <p className="text-[8px] font-black text-slate-500 uppercase">Fulfilled: {formatDateFull(order.fulfilledAt || order.timestamp)}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {activeTab === 'stats' && (
                             <div className="space-y-4">
-                                <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] shadow-sm border border-slate-200 text-center">
-                                    <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <Icon name="trending" size={28} />
+                                <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                                    <div className="text-center mb-8">
+                                        <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Icon name="trending" size={28} />
+                                        </div>
+                                        <h2 className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-1">Weekly Net Profit</h2>
+                                        <p className="text-4xl sm:text-5xl font-black text-slate-900 mono">₵{stats.totalProfit?.toFixed(2)}</p>
                                     </div>
-                                    <h2 className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-1">Weekly Net Profit</h2>
-                                    <p className="text-4xl sm:text-5xl font-black text-slate-900 mb-8 mono">₵{stats.totalProfit?.toFixed(2)}</p>
+
+                                    <div className="bg-slate-50 p-6 rounded-3xl mb-6 border border-slate-200">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Daily Cost Used</h3>
+                                            <button onClick={() => { if(confirm("Reset daily usage?")) resetDailyUsage() }} className="text-[8px] font-black text-indigo-600 uppercase">Reset 9PM</button>
+                                        </div>
+                                        <p className="text-2xl font-black text-slate-800 mono">₵{stats.dailyAmountUsed?.toFixed(2)}</p>
+                                        <p className="text-[9px] text-slate-400 font-bold mt-1">Calculated at ₵3.90 per GB</p>
+                                    </div>
                                     
                                     {isMonday() ? (
                                         <button 
                                             onClick={() => { if(confirm("Monday confirmed. Reset profit to zero?")) resetProfit() }}
                                             className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-slate-200"
                                         >
-                                            Reset Profit for New Week
+                                            Reset Weekly Profit
                                         </button>
                                     ) : (
-                                        <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Reset available every Monday by 6:00 AM</p>
+                                        <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Weekly Reset available every Monday</p>
                                         </div>
                                     )}
                                 </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'history' && (
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center mb-2 px-1">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completed Orders</p>
-                                    <button onClick={clearAllHistory} className="text-[9px] font-black text-red-500 uppercase active:underline">Clear All</button>
-                                </div>
-                                {history.map(order => (
-                                    <div key={order.id} className="bg-white p-5 rounded-[2rem] flex flex-col gap-3 border border-slate-200 shadow-sm overflow-hidden relative">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex-1">
-                                                <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-2 py-1 rounded-lg uppercase">Delivered</span>
-                                                <button onClick={() => deleteOrder(order.id)} className="p-2 text-slate-200 hover:text-red-500 active:scale-90">
-                                                    <Icon name="trash" size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div className="bg-slate-50 p-3 rounded-2xl flex items-center gap-2 border border-slate-100">
-                                            <Icon name="clock" size={10} className="text-slate-400" />
-                                            <p className="text-[8px] font-black text-slate-500 uppercase">Fulfilled: {formatDateFull(order.fulfilledAt || order.timestamp)}</p>
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
                         )}
 
