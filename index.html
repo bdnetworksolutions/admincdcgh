@@ -3,185 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CDC Command Center</title>
+    <title>Cheap Data Center GH</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=JetBrains+Mono:wght@700&display=swap');
-        
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { 
-            background-color: #f1f5f9; 
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: #020617; 
+            color: #f8fafc; 
             margin: 0;
-            -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
-        
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        
-        .action-card { 
-            background: white; 
-            border-radius: 1.5rem; 
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            transition: transform 0.1s;
-        }
-        
-        .action-card:active { transform: scale(0.98); }
-
-        @keyframes slideUp { 
-            from { opacity: 0; transform: translateY(20px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
-        .animate-slide { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-        @keyframes pulse-slow {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-
-        @keyframes pulse-warning {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .animate-pulse-warning { animation: pulse-warning 1s ease-in-out infinite; }
-
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        .toggle-switch {
-            position: relative;
-            width: 70px;
-            height: 40px;
-            background-color: #e2e8f0;
-            border-radius: 9999px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        .toggle-switch.active {
-            background-color: #10b981;
-        }
-
-        .toggle-switch.locked {
-            background-color: #ef4444;
-        }
-
-        .toggle-switch::after {
-            content: '';
-            position: absolute;
-            width: 32px;
-            height: 32px;
-            background-color: white;
-            border-radius: 9999px;
-            top: 4px;
-            left: 4px;
-            transition: left 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .toggle-switch.active::after {
-            left: 34px;
-        }
-
-        .toggle-switch.locked::after {
-            left: 34px;
-        }
+        .glass { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.03); }
+        .gradient-text { background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .bundle-item { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+        .bundle-item.active { background: rgba(79, 70, 229, 0.15); border-color: rgba(99, 102, 241, 0.5); transform: translateY(-2px); box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.3); }
+        @keyframes pop-in { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+        .animate-pop-in { animation: pop-in 0.3s ease-out forwards; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getAuth } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, collection, query, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        
-        window.FirebaseSDK = { 
-            initializeApp, getAuth, getFirestore, 
-            collection, query, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDoc, orderBy, writeBatch
-        };
-    </script>
+    <script type="text/javascript" src="https://www.gstatic.com/firebasejs/11.1.0/firebase-app-compat.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/firebasejs/11.1.0/firebase-auth-compat.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore-compat.js"></script>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useMemo } = React;
 
         const Icon = ({ name, size = 24, className = "" }) => {
             const icons = {
-                copy: (
-                    <React.Fragment>
-                        <path d="M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.242a2 2 0 0 0-.602-1.43L16.083 2.57A2 2 0 0 0 14.685 2H10a2 2 0 0 0-2 2Z" />
-                        <path d="M16 18v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2" />
-                    </React.Fragment>
-                ),
-                check: <path d="M20 6 9 17l-5-5" />,
-                user: (
-                    <React.Fragment>
-                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                    </React.Fragment>
-                ),
-                zap: <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
-                refresh: <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8m0-5v5h-5" />,
-                history: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8m0-5v5h5" />,
-                clock: (
-                    <React.Fragment>
-                        <circle cx="12" cy="12" r="10" />
-                        <polyline points="12 6 12 12 16 14" />
-                    </React.Fragment>
-                ),
-                trash: <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />,
-                trending: (
-                    <React.Fragment>
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-                        <polyline points="17 6 23 6 23 12" />
-                    </React.Fragment>
-                ),
-                volume: (
-                    <React.Fragment>
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                    </React.Fragment>
-                ),
-                mute: (
-                    <React.Fragment>
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                        <line x1="23" y1="9" x2="17" y2="15" />
-                        <line x1="17" y1="9" x2="23" y2="15" />
-                    </React.Fragment>
-                ),
-                lock: (
-                    <React.Fragment>
-                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </React.Fragment>
-                ),
-                unlock: (
-                    <React.Fragment>
-                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 9.9 1" />
-                    </React.Fragment>
-                ),
-                settings: (
-                    <React.Fragment>
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M12 1v6m4.22-4.22-4.24 4.24m4.24 4.24-4.24-4.24M12 17v6m4.22-1.78-4.24-4.24m4.24-4.24-4.24 4.24M1 12h6m4.22-4.22-4.24 4.24m4.24 4.24-4.24-4.24m4.24-4.24-4.24 4.24M17 12h6" />
-                    </React.Fragment>
-                ),
-                alert: (
-                    <React.Fragment>
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3.04h16.94a2 2 0 0 0 1.71-3.04l-8.47-14.14a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" x2="12" y1="9" y2="13" />
-                        <line x1="12" x2="12.01" y1="17" y2="17" />
-                    </React.Fragment>
-                )
+                'shopping-cart': <><path d="m2 7 4.41-1.1a2 2 0 0 1 2.45 1.51l.3 1.2a2 2 0 0 1-1.99 2.49h-3.6a2 2 0 0 1-1.99-2.49l.3-1.2A2 2 0 0 1 4.41 5.91l4.41-1.1"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/><path d="M7 11V7l2-2h8l2 2v4"/><path d="M21 11v8h-4"/><path d="M3 11v8h4"/></>,
+                'smartphone': <><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></>,
+                'history': <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></>,
+                'credit-card': <><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></>,
+                'user': <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+                'plus': <><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></>,
+                'chevron-right': <path d="m9 18 6-6-6-6"/>,
+                'trash-2': <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></>,
+                'loader-2': <path d="M21 12a9 9 0 1 1-6.219-8.56"/>,
+                'check-circle': <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
+                'eye': <><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></>,
+                'eye-off': <><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></>,
+                'message-circle': <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
             };
             return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    {icons[name] || <circle cx="12" cy="12" r="10" />}
+                <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    {icons[name]}
                 </svg>
             );
         };
@@ -193,675 +66,645 @@
             storageBucket: "cheap-data-center.firebasestorage.app",
             messagingSenderId: "397497828779",
             appId: "1:397497828779:web:7db21bcfb636a0bb24feee",
+            measurementId: "G-PB82KSBFP2"
         };
 
         const appId = "cheap-data-center";
-        const BASE_COST_PER_GB = 3.90;
+        const PAYSTACK_PUBLIC_KEY = "pk_live_8e753f43f8defed950965395fc04f5dc7ab1035b";
+        const TRANSACTION_FEE_PERCENT = 0.02; // 2% fee
+
+        const DATA_BUNDLES = [
+            { id: '1gb', name: '1GB', price: 4.60 }, { id: '2gb', name: '2GB', price: 9.20 },
+            { id: '3gb', name: '3GB', price: 13.50 }, { id: '4gb', name: '4GB', price: 18.00 },
+            { id: '5gb', name: '5GB', price: 22.00 }, { id: '6gb', name: '6GB', price: 27.00 },
+            { id: '8gb', name: '8GB', price: 36.00 }, { id: '10gb', name: '10GB', price: 43.00 },
+            { id: '15gb', name: '15GB', price: 63.00 }, { id: '20gb', name: '20GB', price: 83.00 },
+            { id: '30gb', name: '30GB', price: 122.00 },
+        ];
 
         function App() {
-            const [orders, setOrders] = useState([]);
-            const [users, setUsers] = useState([]);
-            const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0 });
+            const [fb, setFb] = useState(null);
+            const [user, setUser] = useState(null);
+            const [profile, setProfile] = useState(null);
+            const [myOrders, setMyOrders] = useState([]);
+            const [transactions, setTransactions] = useState([]);
+            const [activeTab, setActiveTab] = useState('home');
             const [loading, setLoading] = useState(true);
-            const [activeTab, setActiveTab] = useState('pending');
-            const [copyFeedback, setCopyFeedback] = useState(null);
-            const [isMuted, setIsMuted] = useState(false);
-            const [networkLocked, setNetworkLocked] = useState(false);
-            const [lockingNetwork, setLockingNetwork] = useState(false);
-            const [showLockConfirm, setShowLockConfirm] = useState(false);
-            const [lockDuration, setLockDuration] = useState(0);
-            const [lockedAt, setLockedAt] = useState(null);
+            const [processingOrder, setProcessingOrder] = useState(false);
+            const [isLogin, setIsLogin] = useState(true);
+            const [showPassword, setShowPassword] = useState(false);
+            const [authLoading, setAuthLoading] = useState(false);
+            const [authError, setAuthError] = useState("");
             
-            const audioRef = useRef(null);
-            const prevPendingCount = useRef(0);
-            const dbRef = useRef(null);
+            const [cart, setCart] = useState([]); 
+            const [inputPhone, setInputPhone] = useState("");
+            const [selectedBundleId, setSelectedBundleId] = useState("");
+            
+            const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+            const [showDepositModal, setShowDepositModal] = useState(false);
+            const [depositSuccess, setDepositSuccess] = useState(false);
+            const [orderSuccess, setOrderSuccess] = useState(false);
+            const [depositAmount, setDepositAmount] = useState("");
 
-            // Audio Initialization for Mobile
-            useEffect(() => {
-                audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                audioRef.current.load();
-            }, []);
+            const [editName, setEditName] = useState("");
+            const [editPass, setEditPass] = useState("");
+            const [profileLoading, setProfileLoading] = useState(false);
+            const [profileMsg, setProfileMsg] = useState({ text: "", type: "" });
 
-            // Handle Back Button Logic
+            const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + item.price, 0), [cart]);
+
             useEffect(() => {
                 const handlePopState = (event) => {
-                    if (event.state && event.state.tab) {
-                        setActiveTab(event.state.tab);
-                    } else {
-                        setActiveTab('pending');
-                    }
+                    if (showCheckoutModal) { setShowCheckoutModal(false); return; }
+                    if (showDepositModal) { setShowDepositModal(false); setDepositSuccess(false); return; }
+                    if (orderSuccess) { setOrderSuccess(false); return; }
+                    if (activeTab !== 'home') { setActiveTab('home'); return; }
                 };
                 window.addEventListener('popstate', handlePopState);
-                window.history.replaceState({ tab: 'pending' }, '');
+                if (window.history.state !== 'app-running') window.history.pushState('app-running', '');
                 return () => window.removeEventListener('popstate', handlePopState);
-            }, []);
-
-            const changeTab = (tabId) => {
-                if (tabId !== activeTab) {
-                    setActiveTab(tabId);
-                    window.history.pushState({ tab: tabId }, '', `#${tabId}`);
-                }
-            };
+            }, [showCheckoutModal, showDepositModal, orderSuccess, activeTab]);
 
             useEffect(() => {
-                const interval = setInterval(() => {
-                    if (window.FirebaseSDK) {
-                        initFirebase();
-                        clearInterval(interval);
-                    }
+                const checkFirebase = setInterval(() => {
+                    if (window.firebase) { setFb(window.firebase); clearInterval(checkFirebase); }
                 }, 100);
-                return () => clearInterval(interval);
+                return () => clearInterval(checkFirebase);
             }, []);
 
-            const initFirebase = async () => {
-                const fb = window.FirebaseSDK;
-                const app = fb.initializeApp(firebaseConfig);
-                const db = fb.getFirestore(app);
-                dbRef.current = db;
+            useEffect(() => {
+                if (!fb) return;
+                fb.initializeApp(firebaseConfig);
+                const unsubscribe = fb.auth().onAuthStateChanged((u) => {
+                    setUser(u);
+                    if (!u) { setLoading(false); setProfile(null); }
+                });
+                return () => unsubscribe();
+            }, [fb]);
 
+            useEffect(() => {
+                if (!user || !fb) return;
+                const db = fb.firestore();
+                
+                const unsubProfile = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid)
+                    .onSnapshot((docSnap) => {
+                        if (docSnap.exists) {
+                            const data = docSnap.data();
+                            setProfile(data);
+                            setEditName(data.name || "");
+                        } else { setProfile({ isProfileComplete: false }); }
+                        setLoading(false);
+                    }, () => setLoading(false));
+
+                const unsubOrders = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders')
+                    .onSnapshot((snapshot) => {
+                        const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        const filtered = allOrders
+                            .filter(o => o.userId === user.uid)
+                            .sort((a, b) => b.timestamp - a.timestamp);
+                        setMyOrders(filtered);
+                    });
+
+                const unsubTx = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('transactions')
+                    .onSnapshot((snapshot) => {
+                        const allTx = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        const filtered = allTx
+                            .filter(tx => tx.userId === user.uid)
+                            .sort((a, b) => b.timestamp - a.timestamp);
+                        setTransactions(filtered);
+                    });
+
+                return () => { unsubProfile(); unsubOrders(); unsubTx(); };
+            }, [user, fb]);
+
+            useEffect(() => {
+                const script = document.createElement("script");
+                script.src = "https://js.paystack.co/v1/inline.js";
+                script.async = true;
+                document.body.appendChild(script);
+            }, []);
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                setAuthLoading(true); setAuthError("");
+                const fd = new FormData(e.target);
+                const email = fd.get('email').trim();
+                const password = fd.get('password');
+                const auth = fb.auth();
+                const db = fb.firestore();
                 try {
-                    // Initialize Network Settings if it doesn't exist
-                    const networkDocRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'network');
-                    const networkDocSnap = await fb.getDoc(networkDocRef);
-                    
-                    if (!networkDocSnap.exists()) {
-                        console.log("Creating network settings document...");
-                        await fb.setDoc(networkDocRef, {
-                            locked: false,
-                            lockedAt: null,
-                            unlockedAt: null,
-                            status: 'active',
-                            createdAt: Date.now()
+                    if (isLogin) {
+                        await auth.signInWithEmailAndPassword(email, password);
+                    } else {
+                        const userCred = await auth.createUserWithEmailAndPassword(email, password);
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(userCred.user.uid).set({
+                            name: fd.get('name')?.trim(), 
+                            phone: fd.get('phone')?.trim(), 
+                            email,
+                            walletBalance: 0, 
+                            createdAt: Date.now(), 
+                            uid: userCred.user.uid, 
+                            isProfileComplete: true
                         });
                     }
-
-                    // Listen for Network Status
-                    fb.onSnapshot(networkDocRef, (doc) => {
-                        if (doc.exists()) {
-                            const data = doc.data();
-                            console.log("Network status updated:", data);
-                            setNetworkLocked(data.locked || false);
-                            setLockedAt(data.lockedAt || null);
-                        }
-                    });
-                } catch (err) {
-                    console.error("Error initializing network settings:", err);
-                }
-
-                // Listen for Orders
-                const q = fb.query(fb.collection(db, 'artifacts', appId, 'public', 'data', 'orders'), fb.orderBy('timestamp', 'desc'));
-                fb.onSnapshot(q, (snap) => {
-                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    const currentPending = data.filter(o => o.status === 'pending');
-                    
-                    // Sound Alert Logic
-                    if (!loading && currentPending.length > prevPendingCount.current) {
-                        if (!isMuted && audioRef.current) {
-                            audioRef.current.play().catch(e => console.log("Audio play blocked: tap anywhere on the screen first."));
-                        }
-                    }
-                    
-                    prevPendingCount.current = currentPending.length;
-                    setOrders(data);
-                    setLoading(false);
-                });
-
-                fb.onSnapshot(fb.collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snap) => {
-                    setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                });
-
-                fb.onSnapshot(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), (doc) => {
-                    if (doc.exists()) {
-                        setStats(doc.data());
-                    } else {
-                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0 });
-                    }
-                });
+                } catch (err) { setAuthError(err.message); } finally { setAuthLoading(false); }
             };
 
-            const isMonday = () => {
-                const now = new Date();
-                return now.getDay() === 1; // 1 = Monday
-            };
-
-            const toggleNetworkLock = async () => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                setLockingNetwork(true);
+            const handleUpdateProfile = async (e) => {
+                e.preventDefault();
+                setProfileLoading(true); setProfileMsg({ text: "", type: "" });
+                const db = fb.firestore();
                 try {
-                    const newLockState = !networkLocked;
-                    const networkDocRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'network');
-                    
-                    // Use setDoc with merge option to handle non-existent docs
-                    await fb.setDoc(networkDocRef, { 
-                        locked: newLockState,
-                        lockedAt: newLockState ? Date.now() : null,
-                        unlockedAt: !newLockState ? Date.now() : null,
-                        status: newLockState ? 'locked' : 'active',
-                        updatedAt: Date.now()
-                    }, { merge: true });
-                    
-                    console.log("Network lock toggled successfully to:", newLockState);
-                    setShowLockConfirm(false);
+                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid).update({ name: editName });
+                    if (editPass) {
+                        await fb.auth().currentUser.updatePassword(editPass);
+                        setEditPass("");
+                    }
+                    setProfileMsg({ text: "Profile updated successfully!", type: "success" });
+                } catch (err) { setProfileMsg({ text: err.message, type: "error" }); } finally { setProfileLoading(false); }
+            };
+
+            const addToCart = () => {
+                if (!inputPhone || inputPhone.length !== 10 || !selectedBundleId) return;
+                const bundle = DATA_BUNDLES.find(b => b.id === selectedBundleId);
+                setCart([...cart, {
+                    tempId: Date.now() + Math.random(),
+                    phone: inputPhone,
+                    bundleName: bundle.name,
+                    price: bundle.price
+                }]);
+                setInputPhone("");
+                setSelectedBundleId("");
+            };
+
+            const finalizeOrders = async (method) => {
+                if (cart.length === 0) return;
+                setProcessingOrder(true);
+                const db = fb.firestore();
+                try {
+                    const orderPromises = cart.map(item => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders').add({
+                        userId: user.uid,
+                        recipientNumber: item.phone,
+                        bundleName: item.bundleName,
+                        price: item.price,
+                        status: 'pending',
+                        network: 'MTN',
+                        service: 'Data Purchase',
+                        paymentMethod: method,
+                        timestamp: Date.now()
+                    }));
+                    await Promise.all(orderPromises);
+                    if (method === 'wallet') {
+                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid).update({ 
+                            walletBalance: fb.firestore.FieldValue.increment(-cartTotal) 
+                        });
+                    }
+                    setCart([]); 
+                    setShowCheckoutModal(false); 
+                    setOrderSuccess(true);
+                } catch (err) { console.error(err); } finally { setProcessingOrder(false); }
+            };
+
+            const clearOldOrders = async () => {
+                const db = fb.firestore();
+                const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                const batch = db.batch();
+                
+                const oldOrders = myOrders.filter(o => o.timestamp < oneWeekAgo);
+                oldOrders.forEach(o => {
+                    const ref = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('orders').doc(o.id);
+                    batch.delete(ref);
+                });
+                
+                try {
+                    await batch.commit();
                 } catch (err) {
-                    console.error("Error toggling network lock:", err);
-                    alert("Error: " + err.message);
-                } finally {
-                    setLockingNetwork(false);
+                    console.error("Delete error:", err);
                 }
             };
 
-            const calculateLockDuration = () => {
-                if (!lockedAt) return null;
-                const now = Date.now();
-                const duration = now - lockedAt;
-                const seconds = Math.floor((duration / 1000) % 60);
-                const minutes = Math.floor((duration / (1000 * 60)) % 60);
-                const hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
-                
-                if (hours > 0) {
-                    return `${hours}h ${minutes}m`;
-                } else if (minutes > 0) {
-                    return `${minutes}m ${seconds}s`;
-                } else {
-                    return `${seconds}s`;
-                }
-            };
+            if (loading || !fb) return (
+                <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+                    <Icon name="loader-2" className="text-indigo-500 w-12 h-12 animate-spin" />
+                </div>
+            );
 
-            // Update lock duration every second
-            useEffect(() => {
-                if (!networkLocked) return;
-                const interval = setInterval(() => {
-                    setLockDuration(calculateLockDuration());
-                }, 1000);
-                return () => clearInterval(interval);
-            }, [networkLocked, lockedAt]);
-
-            const markProcessing = async (orderId) => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { 
-                    status: 'processing',
-                    processedAt: Date.now()
-                });
-            };
-
-            const markDone = async (order) => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                const gbs = parseFloat(order.bundleName) || 1;
-                const cost = BASE_COST_PER_GB * gbs;
-                const profit = order.price - cost;
-                
-                const newTotalProfit = (stats.totalProfit || 0) + profit;
-                const newDailyUsed = (stats.dailyAmountUsed || 0) + cost;
-
-                const batch = fb.writeBatch(db);
-                const orderRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id);
-                batch.update(orderRef, { status: 'delivered', fulfilledAt: Date.now() });
-
-                const statsRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin');
-                batch.update(statsRef, { 
-                    totalProfit: newTotalProfit,
-                    dailyAmountUsed: newDailyUsed
-                });
-
-                await batch.commit();
-            };
-
-            const resetProfit = async () => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
-            };
-
-            const resetDailyUsage = async () => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { dailyAmountUsed: 0 });
-            };
-
-            const deleteOrder = async (id) => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                await fb.deleteDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', id));
-            };
-
-            const clearAllHistory = async () => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                const historyOrders = orders.filter(o => o.status === 'delivered');
-                for (const order of historyOrders) {
-                    await fb.deleteDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id));
-                }
-            };
-
-            const handleCopy = (text, id) => {
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                setCopyFeedback(id);
-                setTimeout(() => setCopyFeedback(null), 2000);
-                document.body.removeChild(textArea);
-            };
-
-            const formatTime = (ts) => {
-                if (!ts) return "N/A";
-                const date = new Date(ts);
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            };
-
-            const formatDateFull = (ts) => {
-                if (!ts) return "N/A";
-                const date = new Date(ts);
-                return date.toLocaleDateString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-            }
-
-            if (loading) return (
-                <div className="min-h-screen flex items-center justify-center bg-indigo-600">
-                    <div className="text-white text-center">
-                        <div className="w-10 h-10 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="font-black uppercase tracking-widest text-[10px]">Syncing Command...</p>
+            if (!user || !profile?.isProfileComplete) return (
+                <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#020617]">
+                    <div className="w-full max-w-sm space-y-10">
+                        <div className="text-center space-y-2">
+                            <h1 className="text-4xl font-black gradient-text uppercase tracking-tighter italic">Cheap Data Center GH</h1>
+                            <p className="text-slate-400 font-medium text-sm">Ghana's Fastest Data Hub</p>
+                        </div>
+                        <div className="glass p-8 rounded-[2.5rem] space-y-6">
+                            <div className="flex bg-slate-800/50 p-1.5 rounded-2xl">
+                                <button onClick={()=>setIsLogin(true)} className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${isLogin ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>LOGIN</button>
+                                <button onClick={()=>setIsLogin(false)} className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${!isLogin ? 'bg-indigo-600 text-white' : 'text-slate-500'}`}>REGISTER</button>
+                            </div>
+                            <form onSubmit={handleAuth} className="space-y-4">
+                                {!isLogin && (
+                                    <React.Fragment>
+                                        <input name="name" required placeholder="Full Name" className="w-full bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white" />
+                                        <input name="phone" required placeholder="Phone Number" className="w-full bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white" />
+                                    </React.Fragment>
+                                )}
+                                <input name="email" type="email" required placeholder="Email Address" className="w-full bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white" />
+                                <div className="relative">
+                                    <input name="password" type={showPassword ? "text" : "password"} required placeholder="Password" className="w-full bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white" />
+                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-slate-500"><Icon name={showPassword ? "eye-off" : "eye"} size={20} /></button>
+                                </div>
+                                {authError && <p className="text-red-400 text-[10px] font-bold bg-red-400/10 p-4 rounded-2xl text-center">{authError}</p>}
+                                <button disabled={authLoading} className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black uppercase text-xs transition-all shadow-xl shadow-indigo-600/30 text-white">
+                                    {authLoading ? <Icon name="loader-2" size={16} className="mx-auto animate-spin" /> : (isLogin ? 'Sign In' : 'Create Account')}
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             );
 
-            const pending = orders.filter(o => o.status === 'pending');
-            const processing = orders.filter(o => o.status === 'processing');
-            const history = orders.filter(o => o.status === 'delivered');
-
             return (
-                <div className="pb-32 min-h-screen bg-slate-50 overflow-x-hidden" onClick={() => { if(audioRef.current) audioRef.current.play().then(() => audioRef.current.pause()).catch(() => {})}}>
-                    {/* Responsive Header */}
-                    <div className="bg-slate-900 text-white px-5 sm:px-8 pt-10 pb-20 rounded-b-[2.5rem] shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <Icon name="zap" size={120} />
+                <div className="max-w-md mx-auto min-h-screen pb-40 relative">
+                    <header className="px-6 pt-10 pb-6 flex justify-between items-end sticky top-0 bg-[#020617]/90 backdrop-blur-xl z-[60]">
+                        <div className="space-y-1">
+                            <h1 className="text-xl font-black gradient-text uppercase italic tracking-tighter">Cheap Data Center</h1>
+                            <p className="text-[10px] font-extrabold text-slate-500 uppercase flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online</p>
                         </div>
-                        <div className="relative z-10 max-w-lg mx-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <div className={`w-2 h-2 rounded-full ${networkLocked ? 'bg-red-500 animate-pulse-warning' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
-                                        <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">{networkLocked ? '🔒 System Locked' : 'Live Command Suite'}</p>
+                        <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Balance</p>
+                            <p className="text-xl font-black text-emerald-400 leading-none">₵{profile.walletBalance?.toFixed(2)}</p>
+                        </div>
+                    </header>
+
+                    <main className="px-6 space-y-8 mt-4">
+                        {activeTab === 'home' && (
+                            <div className="space-y-8 animate-pop-in">
+                                <div className="relative glass rounded-[2.5rem] p-8 flex justify-between items-center overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-600/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
+                                    <div className="relative">
+                                        <p className="text-slate-500 text-[10px] font-black uppercase mb-1">Available Funds</p>
+                                        <h2 className="text-4xl font-extrabold tracking-tighter">₵ {profile.walletBalance?.toFixed(2)}</h2>
                                     </div>
-                                    <h1 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic">CDC ADMIN</h1>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => setShowLockConfirm(true)}
-                                        disabled={lockingNetwork}
-                                        className={`p-3 rounded-2xl active:scale-90 transition-all ${networkLocked ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'}`}
-                                    >
-                                        <Icon name={networkLocked ? "lock" : "unlock"} size={18} />
-                                    </button>
-                                    <button 
-                                        onClick={() => setIsMuted(!isMuted)} 
-                                        className={`p-3 rounded-2xl active:scale-90 transition-all ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'}`}
-                                    >
-                                        <Icon name={isMuted ? "mute" : "volume"} size={18} />
-                                    </button>
-                                    <button onClick={() => window.location.reload()} className="p-3 bg-white/10 rounded-2xl active:scale-90 transition-all">
-                                        <Icon name="refresh" size={18} />
+                                    <button onClick={() => setShowDepositModal(true)} className="relative bg-indigo-600 p-4 rounded-3xl active:scale-95 shadow-lg shadow-indigo-600/30">
+                                        <Icon name="plus" className="text-white" />
                                     </button>
                                 </div>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                                <div className="bg-indigo-600 p-4 sm:p-5 rounded-3xl shadow-xl shadow-indigo-500/20">
-                                    <p className="text-[9px] font-black text-indigo-200 uppercase mb-1">Queue</p>
-                                    <p className="text-2xl sm:text-3xl font-black mono">{pending.length}</p>
-                                </div>
-                                <div className="bg-slate-800 p-4 sm:p-5 rounded-3xl border border-white/5">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Profit (GH₵)</p>
-                                    <p className="text-2xl sm:text-3xl font-black mono text-emerald-400">{stats.totalProfit?.toFixed(2)}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Network Status Alert */}
-                    {networkLocked && (
-                        <div className="mx-5 sm:mx-8 -mt-8 relative z-20 max-w-lg mx-auto">
-                            <div className="bg-red-500/10 border-l-4 border-red-500 text-red-600 p-4 rounded-2xl flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <Icon name="lock" size={20} />
-                                    <div>
-                                        <p className="font-black text-sm uppercase">System Locked</p>
-                                        <p className="text-[10px] font-bold">Orders paused • Locked for {lockDuration}</p>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={() => setShowLockConfirm(true)}
-                                    className="text-red-600 hover:text-red-700 font-black text-xs px-3 py-1.5 bg-red-100 rounded-lg active:scale-90 transition-all"
-                                >
-                                    Unlock
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Responsive Tab Bar */}
-                    <div className="px-5 sm:px-8 -mt-10 flex gap-2 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
-                        {[
-                            { id: 'pending', label: 'Incoming', icon: 'zap' },
-                            { id: 'history', label: 'History', icon: 'history' },
-                            { id: 'stats', label: 'Stats', icon: 'trending' },
-                            { id: 'users', label: 'Users', icon: 'user' },
-                            { id: 'settings', label: 'Settings', icon: 'settings' }
-                        ].map(tab => (
-                            <button 
-                                key={tab.id}
-                                onClick={() => changeTab(tab.id)}
-                                className={`flex items-center gap-2 px-5 py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md shrink-0 active:scale-95 ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}
-                            >
-                                <Icon name={tab.icon} size={14} />
-                                {tab.label}
-                                {tab.id === 'pending' && pending.length > 0 && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
-                            </button>
-                        ))}
-                    </div>
-
-                    <main className="mt-8 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
-                        {activeTab === 'pending' && (
-                            pending.length === 0 ? (
-                                <div className="text-center py-20 opacity-30 font-bold italic text-sm">No new orders.</div>
-                            ) : (
-                                pending.map(order => (
-                                    <div key={order.id} className="action-card p-5 sm:p-6 animate-slide border-l-8 border-indigo-600">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="flex-1 pr-2">
-                                                <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-2 py-1 rounded uppercase">{order.bundleName}</span>
-                                                <h3 className="text-xl sm:text-2xl font-black mono mt-2 break-all">{order.recipientNumber}</h3>
-                                                <p className="text-[9px] text-slate-400 font-bold mt-1">Requested at {formatTime(order.timestamp)}</p>
-                                            </div>
-                                            <button 
-                                                onClick={() => handleCopy(order.recipientNumber, order.id)}
-                                                className={`p-4 rounded-2xl active:scale-90 transition-all shrink-0 ${copyFeedback === order.id ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}
-                                            >
-                                                <Icon name={copyFeedback === order.id ? 'check' : 'copy'} size={18} />
-                                            </button>
+                                <div className="space-y-6">
+                                    <div className="glass p-2 rounded-3xl flex items-center border border-white/5 focus-within:border-indigo-500/30 transition-all">
+                                        <div className="w-12 h-12 flex items-center justify-center text-indigo-500">
+                                            <Icon name="smartphone" size={18} />
                                         </div>
-                                        <button 
-                                            onClick={() => markProcessing(order.id)} 
-                                            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all"
-                                        >
-                                            Mark Processing & Move to History
-                                        </button>
+                                        <input 
+                                            type="tel" 
+                                            value={inputPhone} 
+                                            maxLength={10}
+                                            onChange={(e) => setInputPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} 
+                                            placeholder="Recipient Phone Number" 
+                                            className="bg-transparent w-full font-bold outline-none text-slate-100 placeholder:text-slate-700 text-sm py-4" 
+                                        />
                                     </div>
-                                ))
-                            )
+
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3 px-2">
+                                            <div className="h-0.5 bg-indigo-500 flex-grow rounded-full opacity-20"></div>
+                                            <span className="text-[10px] font-black bg-indigo-600 text-white px-4 py-1.5 rounded-full uppercase tracking-widest">MTN UP2U OFFERS</span>
+                                            <div className="h-0.5 bg-indigo-500 flex-grow rounded-full opacity-20"></div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {DATA_BUNDLES.map(b => (
+                                                <button 
+                                                    key={b.id}
+                                                    onClick={() => setSelectedBundleId(b.id)}
+                                                    className={`bundle-item glass p-4 rounded-3xl flex flex-col items-center justify-center gap-1 border border-white/5 ${selectedBundleId === b.id ? 'active' : ''}`}
+                                                >
+                                                    <span className={`text-sm font-black ${selectedBundleId === b.id ? 'text-indigo-400' : 'text-slate-200'}`}>{b.name}</span>
+                                                    <span className="text-[10px] font-bold text-slate-500 tracking-tighter">₵{b.price.toFixed(1)}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {selectedBundleId && (
+                                        <button 
+                                            onClick={addToCart}
+                                            disabled={inputPhone.length !== 10}
+                                            className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 rounded-[2rem] font-black uppercase text-xs flex items-center justify-center gap-3 transition-all animate-pop-in text-white shadow-xl shadow-indigo-600/20"
+                                        >
+                                            <Icon name="shopping-cart" size={18} />
+                                            Add to Cart
+                                        </button>
+                                    )}
+                                </div>
+
+                                {cart.length > 0 && (
+                                    <div className="space-y-4 animate-pop-in">
+                                        <div className="flex justify-between items-center px-2">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Your Cart</h4>
+                                            <p className="font-black text-indigo-400">₵{cartTotal.toFixed(2)}</p>
+                                        </div>
+                                        {cart.map(item => (
+                                            <div key={item.tempId} className="glass p-5 rounded-[2rem] flex justify-between items-center border border-white/5">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-400"><Icon name="smartphone" size={16} /></div>
+                                                    <div>
+                                                        <p className="font-bold text-sm text-white">{item.phone}</p>
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase">{item.bundleName}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <p className="font-black text-sm text-emerald-400">₵{item.price.toFixed(2)}</p>
+                                                    <button onClick={() => setCart(cart.filter(i => i.tempId !== item.tempId))} className="p-2 text-slate-700 hover:text-red-400 transition-colors"><Icon name="trash-2" size={18} /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <button onClick={() => setShowCheckoutModal(true)} className="w-full py-5 bg-indigo-600/10 border border-indigo-600/30 text-indigo-400 rounded-[2rem] font-black uppercase text-xs transition-all flex items-center justify-center gap-2">Checkout Total (₵{cartTotal.toFixed(2)})</button>
+                                    </div>
+                                )}
+                            </div>
                         )}
 
-                        {activeTab === 'history' && (
-                            <div className="space-y-6">
-                                {/* In Progress Section */}
-                                {processing.length > 0 && (
+                        {activeTab === 'orders' && (
+                            <div className="space-y-6 animate-pop-in">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-2xl font-black tracking-tight text-white">Activity</h3>
+                                    <button onClick={clearOldOrders} className="text-[10px] font-black bg-red-500/10 text-red-500 px-3 py-1.5 rounded-full uppercase tracking-tighter active:scale-95 transition-all">Clear 7D+ History</button>
+                                </div>
+                                {myOrders.length === 0 ? (
+                                    <div className="glass p-12 rounded-[2.5rem] text-center space-y-4 border-dashed border-white/10 opacity-50">
+                                        <Icon name="history" size={32} className="mx-auto" />
+                                        <p className="text-slate-500 font-bold text-sm">No orders yet.</p>
+                                    </div>
+                                ) : (
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2 px-1">
-                                            <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">In Progress ({processing.length})</p>
-                                        </div>
-                                        {processing.map(order => (
-                                            <div key={order.id} className="bg-white p-5 rounded-[2rem] border-2 border-amber-200 shadow-sm overflow-hidden animate-slide">
-                                                <div className="flex items-start justify-between mb-4">
-                                                    <div className="flex-1">
-                                                        <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
+                                        {myOrders.map(o => (
+                                            <div key={o.id} className="glass p-5 rounded-[2rem] flex justify-between items-center border border-white/5">
+                                                <div className="flex gap-4 items-center">
+                                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${o.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                                                        <Icon name={o.status === 'delivered' ? 'check-circle' : 'loader-2'} size={18} className={o.status !== 'delivered' ? 'animate-spin' : ''} />
                                                     </div>
-                                                    <button 
-                                                        onClick={() => handleCopy(order.recipientNumber, order.id)}
-                                                        className={`p-3 rounded-xl active:scale-90 transition-all shrink-0 ${copyFeedback === order.id ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}
-                                                    >
-                                                        <Icon name={copyFeedback === order.id ? 'check' : 'copy'} size={14} />
-                                                    </button>
+                                                    <div>
+                                                        <p className="font-black text-sm text-white">{o.recipientNumber}</p>
+                                                        <p className="text-[10px] text-slate-500 font-bold uppercase">{o.bundleName} • {new Date(o.timestamp).toLocaleDateString()}</p>
+                                                    </div>
                                                 </div>
-                                                <button 
-                                                    onClick={() => markDone(order)} 
-                                                    className="w-full bg-emerald-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 transition-all"
-                                                >
-                                                    Mark Done
-                                                </button>
+                                                <div className="text-right">
+                                                    <p className="font-black text-sm text-emerald-400">₵{o.price?.toFixed(2)}</p>
+                                                    <p className={`text-[8px] font-black uppercase ${o.status === 'delivered' ? 'text-emerald-500' : 'text-orange-500'}`}>{o.status}</p>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
 
-                                {/* Completed Section */}
+                        {activeTab === 'transactions' && (
+                            <div className="space-y-6 animate-pop-in">
+                                <h3 className="text-2xl font-black tracking-tight text-white">Transfers</h3>
                                 <div className="space-y-3">
-                                    <div className="flex justify-between items-center mb-2 px-1">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completed Orders</p>
-                                        <button onClick={clearAllHistory} className="text-[9px] font-black text-red-500 uppercase active:underline">Clear All</button>
-                                    </div>
-                                    {history.length === 0 && processing.length === 0 && (
-                                        <div className="text-center py-20 opacity-30 font-bold italic text-sm">No history records.</div>
-                                    )}
-                                    {history.map(order => (
-                                        <div key={order.id} className="bg-white p-5 rounded-[2rem] flex flex-col gap-3 border border-slate-200 shadow-sm overflow-hidden relative">
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
-                                                </div>
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black px-2 py-1 rounded-lg uppercase">Delivered</span>
-                                                    <button onClick={() => deleteOrder(order.id)} className="p-2 text-slate-200 hover:text-red-500 active:scale-90">
-                                                        <Icon name="trash" size={14} />
-                                                    </button>
+                                    {transactions.length === 0 ? (
+                                        <p className="text-center text-slate-500 py-10 font-bold">No transfers found.</p>
+                                    ) : transactions.map(tx => (
+                                        <div key={tx.id} className="glass p-5 rounded-[2rem] flex justify-between items-center border border-white/5">
+                                            <div className="flex gap-4 items-center">
+                                                <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center"><Icon name="plus" size={16} /></div>
+                                                <div>
+                                                    <p className="font-bold text-sm text-white">Funds Added</p>
+                                                    <p className="text-[10px] text-slate-500 font-bold uppercase">{new Date(tx.timestamp).toLocaleString()}</p>
                                                 </div>
                                             </div>
-                                            <div className="bg-slate-50 p-3 rounded-2xl flex items-center gap-2 border border-slate-100">
-                                                <Icon name="clock" size={10} className="text-slate-400" />
-                                                <p className="text-[8px] font-black text-slate-500 uppercase">Fulfilled: {formatDateFull(order.fulfilledAt || order.timestamp)}</p>
-                                            </div>
+                                            <p className="font-black text-emerald-400 text-sm">+₵{tx.amount?.toFixed(2)}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {activeTab === 'stats' && (
-                            <div className="space-y-4">
-                                <div className="bg-white p-6 sm:p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
-                                    <div className="text-center mb-8">
-                                        <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <Icon name="trending" size={28} />
-                                        </div>
-                                        <h2 className="text-slate-400 font-black uppercase tracking-widest text-[10px] mb-1">Weekly Net Profit</h2>
-                                        <p className="text-4xl sm:text-5xl font-black text-slate-900 mono">₵{stats.totalProfit?.toFixed(2)}</p>
-                                    </div>
-
-                                    <div className="bg-slate-50 p-6 rounded-3xl mb-6 border border-slate-200">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Daily Cost Used</h3>
-                                            <button onClick={() => { if(confirm("Reset daily usage?")) resetDailyUsage() }} className="text-[8px] font-black text-indigo-600 uppercase">Reset 9PM</button>
-                                        </div>
-                                        <p className="text-2xl font-black text-slate-800 mono">₵{stats.dailyAmountUsed?.toFixed(2)}</p>
-                                        <p className="text-[9px] text-slate-400 font-bold mt-1">Calculated at ₵3.90 per GB</p>
-                                    </div>
-                                    
-                                    {isMonday() ? (
-                                        <button 
-                                            onClick={() => { if(confirm("Monday confirmed. Reset profit to zero?")) resetProfit() }}
-                                            className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-slate-200"
-                                        >
-                                            Reset Weekly Profit
-                                        </button>
-                                    ) : (
-                                        <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Weekly Reset available every Monday</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'users' && (
-                            <div className="space-y-3">
-                                {users.map(u => (
-                                    <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-200 active:bg-slate-50 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center font-black text-sm uppercase">{u.name?.[0] || 'U'}</div>
-                                            <div>
-                                                <p className="font-black text-slate-900 text-sm truncate max-w-[120px]">{u.name || 'User'}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 mono">{u.phone}</p>
-                                            </div>
-                                        </div>
-                                        <p className="font-black text-emerald-600 text-sm shrink-0">₵{u.walletBalance?.toFixed(2)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
                         {activeTab === 'settings' && (
-                            <div className="space-y-6 pb-10">
-                                <div className="text-center mb-8">
-                                    <Icon name="settings" size={40} className="mx-auto text-slate-400 mb-3" />
-                                    <h2 className="text-2xl font-black text-slate-900">Admin Settings</h2>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">Control system access & operations</p>
-                                </div>
-
-                                {/* Network Lock Control */}
-                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200 space-y-6">
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <Icon name={networkLocked ? "lock" : "unlock"} size={24} className={networkLocked ? "text-red-500" : "text-emerald-500"} />
-                                            <div className="flex-1">
-                                                <h3 className="font-black text-slate-900 uppercase text-sm">Network Control</h3>
-                                                <p className="text-[9px] text-slate-400 font-bold">Lock/unlock customer ordering system</p>
-                                            </div>
-                                        </div>
-
-                                        <div className={`p-4 rounded-2xl ${networkLocked ? 'bg-red-50 border-l-4 border-red-500' : 'bg-emerald-50 border-l-4 border-emerald-500'}`}>
-                                            <div className="flex items-center justify-between mb-3">
-                                                <span className={`text-sm font-black uppercase ${networkLocked ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                    {networkLocked ? '🔒 System Locked' : '✓ System Active'}
-                                                </span>
-                                                <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg ${networkLocked ? 'bg-red-200 text-red-700' : 'bg-emerald-200 text-emerald-700'}`}>
-                                                    {networkLocked ? 'ACCEPTING NO ORDERS' : 'ACCEPTING ORDERS'}
-                                                </span>
+                            <div className="space-y-8 pb-10 animate-pop-in">
+                                <h3 className="text-2xl font-black tracking-tight text-white">Account Settings</h3>
+                                
+                                <form onSubmit={handleUpdateProfile} className="space-y-6">
+                                    <div className="glass rounded-[2.5rem] p-8 space-y-6 border border-white/5">
+                                        <div className="space-y-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black uppercase text-slate-500 ml-2 tracking-widest">Display Name</label>
+                                                <input 
+                                                    value={editName} 
+                                                    onChange={(e) => setEditName(e.target.value)}
+                                                    className="w-full bg-slate-900/50 border border-white/5 p-4 rounded-2xl outline-none text-sm font-bold text-white" 
+                                                    placeholder="Your Full Name"
+                                                />
                                             </div>
                                             
-                                            {networkLocked && lockDuration && (
-                                                <p className="text-[10px] font-bold text-slate-600 mb-3">
-                                                    ⏱️ Locked for: <span className="font-black text-red-600">{lockDuration}</span>
-                                                </p>
-                                            )}
-
-                                            <p className="text-[9px] text-slate-600 font-bold mb-4">
-                                                {networkLocked 
-                                                    ? 'Your customers cannot place orders or access the shop. The site displays a "Network Down" message.'
-                                                    : 'Your customers can access the shop and place orders normally.'}
-                                            </p>
-
-                                            <button 
-                                                onClick={() => setShowLockConfirm(true)}
-                                                disabled={lockingNetwork}
-                                                className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md active:scale-95 ${networkLocked ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
-                                            >
-                                                {lockingNetwork ? 'Updating...' : (networkLocked ? '🔓 Unlock Network' : '🔒 Lock Network')}
-                                            </button>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-black uppercase text-slate-500 ml-2 tracking-widest">Change Passcode</label>
+                                                <div className="relative">
+                                                    <input 
+                                                        type={showPassword ? "text" : "password"}
+                                                        value={editPass}
+                                                        onChange={(e) => setEditPass(e.target.value)}
+                                                        className="w-full bg-slate-900/50 border border-white/5 p-4 rounded-2xl outline-none text-sm font-bold text-white" 
+                                                        placeholder="Enter new password (optional)"
+                                                    />
+                                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-slate-500">
+                                                        <Icon name={showPassword ? "eye-off" : "eye"} size={20} />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
+
+                                        {profileMsg.text && (
+                                            <div className={`p-4 rounded-2xl text-[10px] font-black uppercase text-center ${profileMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                                {profileMsg.text}
+                                            </div>
+                                        )}
+
+                                        <button 
+                                            disabled={profileLoading} 
+                                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-2xl font-black uppercase text-xs transition-all shadow-xl shadow-indigo-600/30 text-white"
+                                        >
+                                            {profileLoading ? <Icon name="loader-2" size={16} className="mx-auto animate-spin" /> : 'Update Profile'}
+                                        </button>
                                     </div>
+                                </form>
 
-                                    <div className="pt-4 border-t border-slate-200">
-                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">💡 Pro Tip</p>
-                                        <p className="text-[10px] text-slate-600 font-bold mt-1.5 leading-relaxed">
-                                            Lock the network when your manual ordering service is down or unavailable. Your customers will see a notification to try again later.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* System Info */}
-                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200 space-y-4">
-                                    <h3 className="font-black text-slate-900 uppercase text-sm">System Status</h3>
-                                    
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                                            <span className="text-[9px] font-bold text-slate-600 uppercase">Orders in Queue</span>
-                                            <span className="text-lg font-black text-indigo-600">{pending.length}</span>
-                                        </div>
-                                        
-                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                                            <span className="text-[9px] font-bold text-slate-600 uppercase">In Progress</span>
-                                            <span className="text-lg font-black text-amber-600">{processing.length}</span>
-                                        </div>
-                                        
-                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                                            <span className="text-[9px] font-bold text-slate-600 uppercase">Completed Today</span>
-                                            <span className="text-lg font-black text-emerald-600">{history.length}</span>
-                                        </div>
-
-                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
-                                            <span className="text-[9px] font-bold text-slate-600 uppercase">Total Users</span>
-                                            <span className="text-lg font-black text-blue-600">{users.length}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Danger Zone */}
-                                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-red-200 space-y-4">
-                                    <div className="flex items-center gap-2">
-                                        <Icon name="alert" size={20} className="text-red-500" />
-                                        <h3 className="font-black text-red-600 uppercase text-sm">Danger Zone</h3>
-                                    </div>
-                                    
-                                    <button 
-                                        onClick={() => { if(confirm("Clear all order history? This cannot be undone.")) clearAllHistory() }}
-                                        className="w-full py-3 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 hover:bg-red-700"
-                                    >
-                                        🗑️ Clear All Order History
-                                    </button>
-
-                                    <p className="text-[9px] text-red-600 font-bold">⚠️ This will delete all completed orders permanently.</p>
+                                <div className="glass rounded-[2.5rem] p-8 space-y-4 border border-white/5 text-center">
+                                    <p className="text-[10px] font-black uppercase text-slate-600">Secure Access Only</p>
+                                    <button onClick={() => fb.auth().signOut()} className="w-full py-4 bg-red-500/10 text-red-500 rounded-2xl font-black uppercase text-[10px] hover:bg-red-500 hover:text-white transition-all">Sign Out</button>
                                 </div>
                             </div>
                         )}
                     </main>
 
-                    {/* Lock Confirmation Modal */}
-                    {showLockConfirm && (
-                        <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-6 backdrop-blur-sm">
-                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm space-y-6 shadow-2xl animate-slide">
-                                <div className="flex justify-center">
-                                    <div className={`w-20 h-20 rounded-full flex items-center justify-center ${networkLocked ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                                        <Icon name={networkLocked ? "unlock" : "lock"} size={40} className={networkLocked ? 'text-emerald-600' : 'text-red-600'} />
-                                    </div>
-                                </div>
+                    <a 
+                        href="https://wa.me/233535905990" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="fixed bottom-32 right-6 pl-5 pr-6 h-14 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-2xl shadow-emerald-500/40 z-[90] active:scale-90 transition-transform gap-2"
+                    >
+                        <Icon name="message-circle" size={24} />
+                        <span className="font-black uppercase text-[10px] tracking-widest pt-0.5">Help</span>
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-[#020617] animate-pulse"></span>
+                    </a>
 
+                    {showCheckoutModal && (
+                        <div className="fixed inset-0 bg-[#020617]/95 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+                            <div className="glass w-full max-w-sm rounded-[3rem] p-10 space-y-8 animate-pop-in border border-white/10">
                                 <div className="text-center space-y-2">
-                                    <h2 className="text-2xl font-black text-slate-900">
-                                        {networkLocked ? 'Unlock Network?' : 'Lock Network?'}
-                                    </h2>
-                                    <p className="text-sm text-slate-600 font-bold leading-relaxed">
-                                        {networkLocked 
-                                            ? 'Re-enable customer ordering. Customers will be able to place orders again.'
-                                            : 'Disable customer ordering. Customers will see a "Network Down" message and cannot place orders.'}
-                                    </p>
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">CONFIRM TOTAL</p>
+                                    <h3 className="font-black text-4xl italic text-white">₵{cartTotal.toFixed(2)}</h3>
                                 </div>
-
                                 <div className="space-y-3">
-                                    <button 
-                                        onClick={toggleNetworkLock}
-                                        disabled={lockingNetwork}
-                                        className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg active:scale-95 ${networkLocked ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-red-600 text-white hover:bg-red-700'}`}
-                                    >
-                                        {lockingNetwork ? 'Updating...' : (networkLocked ? '🔓 Yes, Unlock' : '🔒 Yes, Lock')}
+                                    <button disabled={profile.walletBalance < cartTotal} onClick={() => finalizeOrders('wallet')} className="w-full p-5 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 flex justify-between items-center transition-all disabled:opacity-30 group text-white">
+                                        <div className="flex flex-col items-start text-left">
+                                            <span className="font-black text-sm">Wallet Balance</span>
+                                            <span className="text-[10px] font-bold text-slate-500 group-disabled:text-red-400">Available: ₵{profile.walletBalance?.toFixed(2)}</span>
+                                        </div>
+                                        <Icon name="chevron-right" size={18} />
                                     </button>
                                     
-                                    <button 
-                                        onClick={() => setShowLockConfirm(false)}
-                                        disabled={lockingNetwork}
-                                        className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 hover:bg-slate-200"
-                                    >
-                                        Cancel
+                                    <button onClick={() => {
+                                         if (!window.PaystackPop) return;
+                                         const fee = cartTotal * TRANSACTION_FEE_PERCENT;
+                                         const finalAmount = cartTotal + fee;
+                                         const handler = window.PaystackPop.setup({
+                                            key: PAYSTACK_PUBLIC_KEY,
+                                            email: profile?.email || user?.email,
+                                            amount: Math.round(finalAmount * 100),
+                                            currency: "GHS",
+                                            callback: () => finalizeOrders('paystack')
+                                         });
+                                         handler.openIframe();
+                                    }} className="w-full p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 flex justify-between items-center transition-all text-white group">
+                                        <div className="flex flex-col items-start text-left">
+                                            <span className="font-black text-sm">Pay via MoMo/Card</span>
+                                            <span className="text-[9px] font-bold text-emerald-500/60 uppercase">Incl. 2% fee (₵{(cartTotal * TRANSACTION_FEE_PERCENT).toFixed(2)})</span>
+                                        </div>
+                                        <Icon name="chevron-right" size={18} />
                                     </button>
                                 </div>
+                                <button onClick={() => setShowCheckoutModal(false)} className="w-full text-slate-500 font-black uppercase text-[10px] text-center">Back</button>
                             </div>
                         </div>
                     )}
+
+                    {orderSuccess && (
+                        <div className="fixed inset-0 bg-[#020617]/95 z-[200] flex items-center justify-center p-6 backdrop-blur-lg">
+                            <div className="glass w-full max-w-xs rounded-[2.5rem] p-10 text-center space-y-6 animate-pop-in">
+                                <div className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+                                    <Icon name="check-circle" size={40} />
+                                </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Order Successful!</h3>
+                                    <p className="text-slate-500 text-[11px] font-bold uppercase leading-relaxed">Your data bundle is being delivered. Check your history for updates.</p>
+                                </div>
+                                <button 
+                                    onClick={() => { setOrderSuccess(false); setActiveTab('orders'); }} 
+                                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-indigo-600/30 active:scale-95 transition-all"
+                                >
+                                    View History
+                                </button>
+                                <button onClick={() => setOrderSuccess(false)} className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Close</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {showDepositModal && (
+                        <div className="fixed inset-0 bg-[#020617]/95 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+                            <div className="glass w-full max-w-sm rounded-[3rem] p-10 space-y-8 animate-pop-in border border-white/10">
+                                {depositSuccess ? (
+                                    <div className="text-center space-y-4 py-10 animate-pop-in">
+                                        <div className="w-20 h-20 bg-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Icon name="check-circle" size={48} />
+                                        </div>
+                                        <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Deposit Successful</h3>
+                                        <p className="text-slate-500 text-sm font-bold">Your wallet balance has been updated.</p>
+                                    </div>
+                                ) : (
+                                    <React.Fragment>
+                                        <h3 className="font-black text-2xl text-center text-white">Topup Wallet</h3>
+                                        <div className="space-y-4">
+                                            <div className="bg-slate-900/50 rounded-2xl p-6">
+                                                <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="0.00" className="w-full bg-transparent p-0 font-black text-4xl text-center outline-none text-emerald-400" />
+                                                {depositAmount && (
+                                                    <p className="text-[9px] font-black text-center text-slate-500 uppercase mt-4 tracking-widest">
+                                                        Total: ₵{(parseFloat(depositAmount) + (parseFloat(depositAmount) * TRANSACTION_FEE_PERCENT)).toFixed(2)} (Incl. 2% fee)
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <button onClick={() => {
+                                                if (!window.PaystackPop || !depositAmount) return;
+                                                const baseAmount = parseFloat(depositAmount);
+                                                const fee = baseAmount * TRANSACTION_FEE_PERCENT;
+                                                const finalAmount = baseAmount + fee;
+                                                
+                                                const handler = window.PaystackPop.setup({
+                                                    key: PAYSTACK_PUBLIC_KEY,
+                                                    email: profile?.email || user?.email,
+                                                    amount: Math.round(finalAmount * 100),
+                                                    currency: "GHS",
+                                                    callback: async () => {
+                                                        const db = fb.firestore();
+                                                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid).update({ 
+                                                            walletBalance: fb.firestore.FieldValue.increment(baseAmount) 
+                                                        });
+                                                        await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('transactions').add({
+                                                            userId: user.uid,
+                                                            amount: baseAmount,
+                                                            type: 'deposit',
+                                                            timestamp: Date.now()
+                                                        });
+                                                        setDepositSuccess(true);
+                                                        setTimeout(() => {
+                                                            setDepositSuccess(false);
+                                                            setShowDepositModal(false);
+                                                            setDepositAmount("");
+                                                        }, 2500);
+                                                    }
+                                                });
+                                                handler.openIframe();
+                                            }} className="w-full py-5 bg-indigo-600 rounded-2xl font-black uppercase shadow-xl shadow-indigo-600/20 text-white">Deposit Securely</button>
+                                        </div>
+                                        <button onClick={() => setShowDepositModal(false)} className="w-full text-slate-500 font-black uppercase text-[10px] text-center block">Cancel</button>
+                                    </React.Fragment>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <nav className="fixed bottom-8 left-4 right-4 h-24 glass rounded-[3rem] flex justify-around items-center z-[80] shadow-2xl border border-white/10 px-2">
+                        <NavBtn active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon="smartphone" label="Shop" count={cart.length} />
+                        <NavBtn active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} icon="history" label="Activity" />
+                        <NavBtn active={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} icon="credit-card" label="Wallet" />
+                        <NavBtn active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon="user" label="Me" />
+                    </nav>
+
+                    {processingOrder && (
+                        <div className="fixed inset-0 bg-[#020617]/95 z-[300] flex flex-col items-center justify-center gap-4">
+                            <Icon name="loader-2" size={64} className="text-indigo-500 animate-spin" />
+                            <p className="font-black uppercase text-[10px] text-indigo-400 tracking-widest animate-pulse">Confirming Payment...</p>
+                        </div>
+                    )}
                 </div>
+            );
+        }
+
+        function NavBtn({ icon, label, active, onClick, count = 0 }) {
+            return (
+                <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-all duration-300 relative ${active ? 'text-indigo-400' : 'text-slate-600'}`}>
+                    <div className={`p-3 rounded-2xl transition-all ${active ? 'bg-indigo-500/10' : ''}`}>
+                        <Icon name={icon} size={20} />
+                        {count > 0 && (
+                            <div className="absolute top-2 right-2 w-4 h-4 bg-indigo-600 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-[#020617]">
+                                {count}
+                            </div>
+                        )}
+                    </div>
+                    <span className="text-[8px] font-black uppercase tracking-tighter">{label}</span>
+                </button>
             );
         }
 
