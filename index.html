@@ -42,6 +42,12 @@
         }
         .animate-pulse-slow { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
+        @keyframes pulse-warning {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-warning { animation: pulse-warning 1s ease-in-out infinite; }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -107,7 +113,20 @@
                         <line x1="23" y1="9" x2="17" y2="15" />
                         <line x1="17" y1="9" x2="23" y2="15" />
                     </React.Fragment>
-                )
+                ),
+                lock: (
+                    <React.Fragment>
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </React.Fragment>
+                ),
+                unlock: (
+                    <React.Fragment>
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 9.9 1" />
+                    </React.Fragment>
+                ),
+                send: <><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 2 22 9 22 2"/></>,
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -132,21 +151,28 @@
             const [orders, setOrders] = useState([]);
             const [users, setUsers] = useState([]);
             const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0 });
+            const [withdrawals, setWithdrawals] = useState([]);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('pending');
             const [copyFeedback, setCopyFeedback] = useState(null);
             const [isMuted, setIsMuted] = useState(false);
+            const [networkLocked, setNetworkLocked] = useState(false);
+            const [lockingNetwork, setLockingNetwork] = useState(false);
+            const [showLockConfirm, setShowLockConfirm] = useState(false);
+            const [lockDuration, setLockDuration] = useState(0);
+            const [lockedAt, setLockedAt] = useState(null);
+            const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+            const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
             
             const audioRef = useRef(null);
             const prevPendingCount = useRef(0);
+            const dbRef = useRef(null);
 
-            // Audio Initialization for Mobile
             useEffect(() => {
                 audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
                 audioRef.current.load();
             }, []);
 
-            // Handle Back Button Logic
             useEffect(() => {
                 const handlePopState = (event) => {
                     if (event.state && event.state.tab) {
@@ -177,21 +203,45 @@
                 return () => clearInterval(interval);
             }, []);
 
-            const initFirebase = () => {
+            const initFirebase = async () => {
                 const fb = window.FirebaseSDK;
                 const app = fb.initializeApp(firebaseConfig);
                 const db = fb.getFirestore(app);
+                dbRef.current = db;
 
-                // Listen for Orders
+                try {
+                    const networkDocRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'network');
+                    const networkDocSnap = await fb.getDoc(networkDocRef);
+                    
+                    if (!networkDocSnap.exists()) {
+                        await fb.setDoc(networkDocRef, {
+                            locked: false,
+                            lockedAt: null,
+                            unlockedAt: null,
+                            status: 'active',
+                            createdAt: Date.now()
+                        });
+                    }
+
+                    fb.onSnapshot(networkDocRef, (doc) => {
+                        if (doc.exists()) {
+                            const data = doc.data();
+                            setNetworkLocked(data.locked || false);
+                            setLockedAt(data.lockedAt || null);
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error:", err);
+                }
+
                 const q = fb.query(fb.collection(db, 'artifacts', appId, 'public', 'data', 'orders'), fb.orderBy('timestamp', 'desc'));
                 fb.onSnapshot(q, (snap) => {
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     const currentPending = data.filter(o => o.status === 'pending');
                     
-                    // Sound Alert Logic
                     if (!loading && currentPending.length > prevPendingCount.current) {
                         if (!isMuted && audioRef.current) {
-                            audioRef.current.play().catch(e => console.log("Audio play blocked: tap anywhere on the screen first."));
+                            audioRef.current.play().catch(e => console.log("Audio blocked"));
                         }
                     }
                     
@@ -211,16 +261,99 @@
                         fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0 });
                     }
                 });
+
+                try {
+                    const withdrawalsQuery = fb.query(fb.collection(db, 'artifacts', appId, 'public', 'data', 'withdrawals'), fb.orderBy('requestedAt', 'desc'));
+                    fb.onSnapshot(withdrawalsQuery, (snap) => {
+                        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        setWithdrawals(data);
+                    });
+                } catch (err) {
+                    console.log("Withdrawals not ready");
+                }
             };
 
             const isMonday = () => {
                 const now = new Date();
-                return now.getDay() === 1; // 1 = Monday
+                return now.getDay() === 1;
+            };
+
+            const toggleNetworkLock = async () => {
+                const fb = window.FirebaseSDK;
+                const db = dbRef.current;
+                setLockingNetwork(true);
+                try {
+                    const newLockState = !networkLocked;
+                    const networkDocRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'network');
+                    
+                    await fb.setDoc(networkDocRef, { 
+                        locked: newLockState,
+                        lockedAt: newLockState ? Date.now() : null,
+                        unlockedAt: !newLockState ? Date.now() : null,
+                        status: newLockState ? 'locked' : 'active',
+                        updatedAt: Date.now()
+                    }, { merge: true });
+                    
+                    setShowLockConfirm(false);
+                } catch (err) {
+                    alert("Error: " + err.message);
+                } finally {
+                    setLockingNetwork(false);
+                }
+            };
+
+            const calculateLockDuration = () => {
+                if (!lockedAt) return null;
+                const now = Date.now();
+                const duration = now - lockedAt;
+                const seconds = Math.floor((duration / 1000) % 60);
+                const minutes = Math.floor((duration / (1000 * 60)) % 60);
+                const hours = Math.floor((duration / (1000 * 60 * 60)) % 24);
+                
+                if (hours > 0) {
+                    return `${hours}h ${minutes}m`;
+                } else if (minutes > 0) {
+                    return `${minutes}m ${seconds}s`;
+                } else {
+                    return `${seconds}s`;
+                }
+            };
+
+            useEffect(() => {
+                if (!networkLocked) return;
+                const interval = setInterval(() => {
+                    setLockDuration(calculateLockDuration());
+                }, 1000);
+                return () => clearInterval(interval);
+            }, [networkLocked, lockedAt]);
+
+            const processWithdrawal = async (withdrawalId) => {
+                const fb = window.FirebaseSDK;
+                const db = dbRef.current;
+                
+                const withdrawal = withdrawals.find(w => w.id === withdrawalId);
+                if (!withdrawal) return;
+
+                try {
+                    await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'withdrawals', withdrawalId), {
+                        status: 'completed',
+                        completedAt: Date.now()
+                    });
+
+                    await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'users', withdrawal.userId), {
+                        resellerEarnings: 0
+                    });
+
+                    setShowWithdrawalModal(false);
+                    setSelectedWithdrawal(null);
+                } catch (err) {
+                    alert("Error: " + err.message);
+                }
             };
 
             const markProcessing = async (orderId) => {
                 const fb = window.FirebaseSDK;
-                const db = fb.getFirestore();
+                const db = dbRef.current;
                 await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId), { 
                     status: 'processing',
                     processedAt: Date.now()
@@ -229,7 +362,7 @@
 
             const markDone = async (order) => {
                 const fb = window.FirebaseSDK;
-                const db = fb.getFirestore();
+                const db = dbRef.current;
                 const gbs = parseFloat(order.bundleName) || 1;
                 const cost = BASE_COST_PER_GB * gbs;
                 const profit = order.price - cost;
@@ -252,25 +385,25 @@
 
             const resetProfit = async () => {
                 const fb = window.FirebaseSDK;
-                const db = fb.getFirestore();
+                const db = dbRef.current;
                 await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
             };
 
             const resetDailyUsage = async () => {
                 const fb = window.FirebaseSDK;
-                const db = fb.getFirestore();
+                const db = dbRef.current;
                 await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { dailyAmountUsed: 0 });
             };
 
             const deleteOrder = async (id) => {
                 const fb = window.FirebaseSDK;
-                const db = fb.getFirestore();
+                const db = dbRef.current;
                 await fb.deleteDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', id));
             };
 
             const clearAllHistory = async () => {
                 const fb = window.FirebaseSDK;
-                const db = fb.getFirestore();
+                const db = dbRef.current;
                 const historyOrders = orders.filter(o => o.status === 'delivered');
                 for (const order of historyOrders) {
                     await fb.deleteDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id));
@@ -312,10 +445,11 @@
             const pending = orders.filter(o => o.status === 'pending');
             const processing = orders.filter(o => o.status === 'processing');
             const history = orders.filter(o => o.status === 'delivered');
+            const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
 
             return (
                 <div className="pb-32 min-h-screen bg-slate-50 overflow-x-hidden" onClick={() => { if(audioRef.current) audioRef.current.play().then(() => audioRef.current.pause()).catch(() => {})}}>
-                    {/* Responsive Header */}
+                    {/* Header */}
                     <div className="bg-slate-900 text-white px-5 sm:px-8 pt-10 pb-20 rounded-b-[2.5rem] shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-8 opacity-10">
                             <Icon name="zap" size={120} />
@@ -324,12 +458,19 @@
                             <div className="flex justify-between items-center mb-6">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
-                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse-slow"></div>
-                                        <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Live Command Suite</p>
+                                        <div className={`w-2 h-2 rounded-full ${networkLocked ? 'bg-red-500 animate-pulse-warning' : 'bg-emerald-500 animate-pulse-slow'}`}></div>
+                                        <p className="text-[9px] text-slate-400 font-bold tracking-widest uppercase">{networkLocked ? '🔒 System Locked' : 'Live Command Suite'}</p>
                                     </div>
                                     <h1 className="text-xl sm:text-2xl font-black tracking-tighter uppercase italic">CDC ADMIN</h1>
                                 </div>
                                 <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setShowLockConfirm(true)}
+                                        disabled={lockingNetwork}
+                                        className={`p-3 rounded-2xl active:scale-90 transition-all ${networkLocked ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-500'}`}
+                                    >
+                                        <Icon name={networkLocked ? "lock" : "unlock"} size={18} />
+                                    </button>
                                     <button 
                                         onClick={() => setIsMuted(!isMuted)} 
                                         className={`p-3 rounded-2xl active:scale-90 transition-all ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'}`}
@@ -355,27 +496,43 @@
                         </div>
                     </div>
 
-                    {/* Responsive Tab Bar */}
-                    <div className="px-5 sm:px-8 -mt-10 flex gap-2 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
+                    {networkLocked && (
+                        <div className="mx-5 sm:mx-8 -mt-8 relative z-20 max-w-lg mx-auto">
+                            <div className="bg-red-500/10 border-l-4 border-red-500 text-red-600 p-4 rounded-2xl flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Icon name="lock" size={20} />
+                                    <div>
+                                        <p className="font-black text-sm uppercase">System Locked</p>
+                                        <p className="text-[10px] font-bold">Orders paused • Locked for {lockDuration}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tab Bar - SCROLLABLE WITH MORE SPACE */}
+                    <div className="px-2 sm:px-4 -mt-10 flex gap-1 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
                         {[
                             { id: 'pending', label: 'Incoming', icon: 'zap' },
                             { id: 'history', label: 'History', icon: 'history' },
+                            { id: 'withdrawals', label: 'Withdrawals', icon: 'send' },
+                            { id: 'users', label: 'Users', icon: 'user' },
                             { id: 'stats', label: 'Stats', icon: 'trending' },
-                            { id: 'users', label: 'Users', icon: 'user' }
                         ].map(tab => (
                             <button 
                                 key={tab.id}
                                 onClick={() => changeTab(tab.id)}
-                                className={`flex items-center gap-2 px-5 py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md shrink-0 active:scale-95 ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}
+                                className={`flex items-center gap-1.5 px-3 py-3 rounded-2xl font-black text-[9px] uppercase transition-all shadow-md shrink-0 active:scale-95 whitespace-nowrap ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}
                             >
-                                <Icon name={tab.icon} size={14} />
+                                <Icon name={tab.icon} size={12} />
                                 {tab.label}
-                                {tab.id === 'pending' && pending.length > 0 && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
+                                {tab.id === 'pending' && pending.length > 0 && <span className="w-1.5 h-1.5 bg-red-500 rounded-full ml-1"></span>}
+                                {tab.id === 'withdrawals' && pendingWithdrawals.length > 0 && <span className="w-1.5 h-1.5 bg-orange-500 rounded-full ml-1"></span>}
                             </button>
                         ))}
                     </div>
 
-                    <main className="mt-8 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
+                    <main className="mt-6 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
                         {activeTab === 'pending' && (
                             pending.length === 0 ? (
                                 <div className="text-center py-20 opacity-30 font-bold italic text-sm">No new orders.</div>
@@ -384,8 +541,11 @@
                                     <div key={order.id} className="action-card p-5 sm:p-6 animate-slide border-l-8 border-indigo-600">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex-1 pr-2">
-                                                <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-2 py-1 rounded uppercase">{order.bundleName}</span>
-                                                <h3 className="text-xl sm:text-2xl font-black mono mt-2 break-all">{order.recipientNumber}</h3>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-2 py-1 rounded uppercase">{order.bundleName}</span>
+                                                    {order.resellerId && <span className="bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-1 rounded uppercase">📊 Reseller</span>}
+                                                </div>
+                                                <h3 className="text-xl sm:text-2xl font-black mono mt-1 break-all">{order.recipientNumber}</h3>
                                                 <p className="text-[9px] text-slate-400 font-bold mt-1">Requested at {formatTime(order.timestamp)}</p>
                                             </div>
                                             <button 
@@ -408,7 +568,6 @@
 
                         {activeTab === 'history' && (
                             <div className="space-y-6">
-                                {/* In Progress Section */}
                                 {processing.length > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2 px-1">
@@ -421,6 +580,7 @@
                                                     <div className="flex-1">
                                                         <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
+                                                        {order.resellerId && <p className="text-[8px] text-blue-600 font-bold mt-1">📊 Via Reseller</p>}
                                                     </div>
                                                     <button 
                                                         onClick={() => handleCopy(order.recipientNumber, order.id)}
@@ -440,7 +600,6 @@
                                     </div>
                                 )}
 
-                                {/* Completed Section */}
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center mb-2 px-1">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completed Orders</p>
@@ -470,6 +629,63 @@
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'withdrawals' && (
+                            <div className="space-y-4">
+                                <h2 className="text-xl font-black text-slate-900 mb-4">Withdrawal Requests</h2>
+                                {pendingWithdrawals.length === 0 ? (
+                                    <div className="text-center py-20 opacity-30 font-bold italic text-sm">No pending withdrawals.</div>
+                                ) : (
+                                    pendingWithdrawals.map(w => (
+                                        <div key={w.id} className="action-card p-5 border-l-8 border-orange-500 animate-slide">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex-1">
+                                                    <p className="font-black text-slate-900">{w.resellerName}</p>
+                                                    <p className="text-[10px] font-bold text-slate-600 mt-2">💰 Amount: <span className="font-black text-orange-600">₵{w.amount?.toFixed(2)}</span></p>
+                                                    <p className="text-[9px] font-bold text-slate-500 mt-1">📱 MoMo: {w.momoNumber}</p>
+                                                    <p className="text-[9px] font-bold text-slate-500">👤 Name: {w.withdrawalName}</p>
+                                                    <p className="text-[8px] text-slate-400 font-bold mt-2">Requested: {formatDateFull(w.requestedAt)}</p>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        setSelectedWithdrawal(w);
+                                                        setShowWithdrawalModal(true);
+                                                    }}
+                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-black text-[10px] uppercase hover:bg-indigo-700 active:scale-90 shrink-0"
+                                                >
+                                                    Process
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {activeTab === 'users' && (
+                            <div className="space-y-3">
+                                {users.length === 0 ? (
+                                    <div className="text-center py-20 opacity-30 font-bold italic text-sm">No users yet.</div>
+                                ) : (
+                                    users.map(u => (
+                                        <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-200 active:bg-slate-50 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center font-black text-sm uppercase">{u.name?.[0] || 'U'}</div>
+                                                <div>
+                                                    <p className="font-black text-slate-900 text-sm truncate max-w-[120px]">{u.name || 'User'}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400 mono">{u.phone}</p>
+                                                    {u.isReseller && <p className="text-[8px] text-indigo-600 font-bold mt-0.5">🚀 RESELLER</p>}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-black text-emerald-600 text-sm">₵{u.walletBalance?.toFixed(2)}</p>
+                                                {u.resellerEarnings > 0 && <p className="text-[8px] font-black text-orange-600 mt-1">Earnings: ₵{u.resellerEarnings?.toFixed(2)}</p>}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         )}
 
@@ -508,24 +724,78 @@
                                 </div>
                             </div>
                         )}
-
-                        {activeTab === 'users' && (
-                            <div className="space-y-3">
-                                {users.map(u => (
-                                    <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-200 active:bg-slate-50 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center font-black text-sm uppercase">{u.name?.[0] || 'U'}</div>
-                                            <div>
-                                                <p className="font-black text-slate-900 text-sm truncate max-w-[120px]">{u.name || 'User'}</p>
-                                                <p className="text-[9px] font-bold text-slate-400 mono">{u.phone}</p>
-                                            </div>
-                                        </div>
-                                        <p className="font-black text-emerald-600 text-sm shrink-0">₵{u.walletBalance?.toFixed(2)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </main>
+
+                    {/* Withdrawal Modal */}
+                    {showWithdrawalModal && selectedWithdrawal && (
+                        <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-6 backdrop-blur-sm">
+                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm space-y-6 shadow-2xl">
+                                <h2 className="text-2xl font-black text-slate-900 text-center">Process Withdrawal</h2>
+                                <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl space-y-2 text-sm">
+                                    <p className="font-bold"><span className="font-black">Reseller:</span> {selectedWithdrawal.resellerName}</p>
+                                    <p className="font-bold"><span className="font-black">Amount:</span> ₵{selectedWithdrawal.amount?.toFixed(2)}</p>
+                                    <p className="font-bold"><span className="font-black">MoMo:</span> {selectedWithdrawal.momoNumber}</p>
+                                    <p className="font-bold"><span className="font-black">Name:</span> {selectedWithdrawal.withdrawalName}</p>
+                                </div>
+                                <div className="space-y-3">
+                                    <button 
+                                        onClick={() => processWithdrawal(selectedWithdrawal.id)}
+                                        className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-sm hover:bg-emerald-700"
+                                    >
+                                        ✓ Mark Completed
+                                    </button>
+                                    <button 
+                                        onClick={() => { setShowWithdrawalModal(false); setSelectedWithdrawal(null); }}
+                                        className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black uppercase text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Lock Modal */}
+                    {showLockConfirm && (
+                        <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-6 backdrop-blur-sm">
+                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm space-y-6 shadow-2xl">
+                                <div className="flex justify-center">
+                                    <div className={`w-20 h-20 rounded-full flex items-center justify-center ${networkLocked ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                                        <Icon name={networkLocked ? "unlock" : "lock"} size={40} className={networkLocked ? 'text-emerald-600' : 'text-red-600'} />
+                                    </div>
+                                </div>
+
+                                <div className="text-center space-y-2">
+                                    <h2 className="text-2xl font-black text-slate-900">
+                                        {networkLocked ? 'Unlock Network?' : 'Lock Network?'}
+                                    </h2>
+                                    <p className="text-sm text-slate-600 font-bold leading-relaxed">
+                                        {networkLocked 
+                                            ? 'Re-enable customer ordering.'
+                                            : 'Disable customer ordering.'}
+                                    </p>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <button 
+                                        onClick={toggleNetworkLock}
+                                        disabled={lockingNetwork}
+                                        className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-lg active:scale-95 ${networkLocked ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                                    >
+                                        {lockingNetwork ? 'Updating...' : (networkLocked ? '🔓 Yes, Unlock' : '🔒 Yes, Lock')}
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={() => setShowLockConfirm(false)}
+                                        disabled={lockingNetwork}
+                                        className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 hover:bg-slate-200"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
