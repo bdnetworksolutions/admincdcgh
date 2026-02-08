@@ -50,6 +50,45 @@
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .toggle-switch {
+            position: relative;
+            width: 70px;
+            height: 40px;
+            background-color: #e2e8f0;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background-color: #10b981;
+        }
+
+        .toggle-switch.locked {
+            background-color: #ef4444;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            background-color: white;
+            border-radius: 9999px;
+            top: 4px;
+            left: 4px;
+            transition: left 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-switch.active::after {
+            left: 34px;
+        }
+
+        .toggle-switch.locked::after {
+            left: 34px;
+        }
     </style>
 </head>
 <body>
@@ -126,7 +165,19 @@
                         <path d="M7 11V7a5 5 0 0 1 9.9 1" />
                     </React.Fragment>
                 ),
-                send: <><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 2 22 9 22 2"/></>,
+                settings: (
+                    <React.Fragment>
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 1v6m4.22-4.22-4.24 4.24m4.24 4.24-4.24-4.24M12 17v6m4.22-1.78-4.24-4.24m4.24-4.24-4.24 4.24M1 12h6m4.22-4.22-4.24 4.24m4.24 4.24-4.24-4.24m4.24-4.24-4.24 4.24M17 12h6" />
+                    </React.Fragment>
+                ),
+                alert: (
+                    <React.Fragment>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3.04h16.94a2 2 0 0 0 1.71-3.04l-8.47-14.14a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" x2="12" y1="9" y2="13" />
+                        <line x1="12" x2="12.01" y1="17" y2="17" />
+                    </React.Fragment>
+                )
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -151,7 +202,6 @@
             const [orders, setOrders] = useState([]);
             const [users, setUsers] = useState([]);
             const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0 });
-            const [withdrawals, setWithdrawals] = useState([]);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('pending');
             const [copyFeedback, setCopyFeedback] = useState(null);
@@ -161,18 +211,18 @@
             const [showLockConfirm, setShowLockConfirm] = useState(false);
             const [lockDuration, setLockDuration] = useState(0);
             const [lockedAt, setLockedAt] = useState(null);
-            const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
-            const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
             
             const audioRef = useRef(null);
             const prevPendingCount = useRef(0);
             const dbRef = useRef(null);
 
+            // Audio Initialization for Mobile
             useEffect(() => {
                 audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
                 audioRef.current.load();
             }, []);
 
+            // Handle Back Button Logic
             useEffect(() => {
                 const handlePopState = (event) => {
                     if (event.state && event.state.tab) {
@@ -210,10 +260,12 @@
                 dbRef.current = db;
 
                 try {
+                    // Initialize Network Settings if it doesn't exist
                     const networkDocRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'network');
                     const networkDocSnap = await fb.getDoc(networkDocRef);
                     
                     if (!networkDocSnap.exists()) {
+                        console.log("Creating network settings document...");
                         await fb.setDoc(networkDocRef, {
                             locked: false,
                             lockedAt: null,
@@ -223,25 +275,29 @@
                         });
                     }
 
+                    // Listen for Network Status
                     fb.onSnapshot(networkDocRef, (doc) => {
                         if (doc.exists()) {
                             const data = doc.data();
+                            console.log("Network status updated:", data);
                             setNetworkLocked(data.locked || false);
                             setLockedAt(data.lockedAt || null);
                         }
                     });
                 } catch (err) {
-                    console.error("Error:", err);
+                    console.error("Error initializing network settings:", err);
                 }
 
+                // Listen for Orders
                 const q = fb.query(fb.collection(db, 'artifacts', appId, 'public', 'data', 'orders'), fb.orderBy('timestamp', 'desc'));
                 fb.onSnapshot(q, (snap) => {
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     const currentPending = data.filter(o => o.status === 'pending');
                     
+                    // Sound Alert Logic
                     if (!loading && currentPending.length > prevPendingCount.current) {
                         if (!isMuted && audioRef.current) {
-                            audioRef.current.play().catch(e => console.log("Audio blocked"));
+                            audioRef.current.play().catch(e => console.log("Audio play blocked: tap anywhere on the screen first."));
                         }
                     }
                     
@@ -261,21 +317,11 @@
                         fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0 });
                     }
                 });
-
-                try {
-                    const withdrawalsQuery = fb.query(fb.collection(db, 'artifacts', appId, 'public', 'data', 'withdrawals'), fb.orderBy('requestedAt', 'desc'));
-                    fb.onSnapshot(withdrawalsQuery, (snap) => {
-                        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                        setWithdrawals(data);
-                    });
-                } catch (err) {
-                    console.log("Withdrawals not ready");
-                }
             };
 
             const isMonday = () => {
                 const now = new Date();
-                return now.getDay() === 1;
+                return now.getDay() === 1; // 1 = Monday
             };
 
             const toggleNetworkLock = async () => {
@@ -286,6 +332,7 @@
                     const newLockState = !networkLocked;
                     const networkDocRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'network');
                     
+                    // Use setDoc with merge option to handle non-existent docs
                     await fb.setDoc(networkDocRef, { 
                         locked: newLockState,
                         lockedAt: newLockState ? Date.now() : null,
@@ -294,8 +341,10 @@
                         updatedAt: Date.now()
                     }, { merge: true });
                     
+                    console.log("Network lock toggled successfully to:", newLockState);
                     setShowLockConfirm(false);
                 } catch (err) {
+                    console.error("Error toggling network lock:", err);
                     alert("Error: " + err.message);
                 } finally {
                     setLockingNetwork(false);
@@ -319,6 +368,7 @@
                 }
             };
 
+            // Update lock duration every second
             useEffect(() => {
                 if (!networkLocked) return;
                 const interval = setInterval(() => {
@@ -326,30 +376,6 @@
                 }, 1000);
                 return () => clearInterval(interval);
             }, [networkLocked, lockedAt]);
-
-            const processWithdrawal = async (withdrawalId) => {
-                const fb = window.FirebaseSDK;
-                const db = dbRef.current;
-                
-                const withdrawal = withdrawals.find(w => w.id === withdrawalId);
-                if (!withdrawal) return;
-
-                try {
-                    await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'withdrawals', withdrawalId), {
-                        status: 'completed',
-                        completedAt: Date.now()
-                    });
-
-                    await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'users', withdrawal.userId), {
-                        resellerEarnings: 0
-                    });
-
-                    setShowWithdrawalModal(false);
-                    setSelectedWithdrawal(null);
-                } catch (err) {
-                    alert("Error: " + err.message);
-                }
-            };
 
             const markProcessing = async (orderId) => {
                 const fb = window.FirebaseSDK;
@@ -445,11 +471,10 @@
             const pending = orders.filter(o => o.status === 'pending');
             const processing = orders.filter(o => o.status === 'processing');
             const history = orders.filter(o => o.status === 'delivered');
-            const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
 
             return (
                 <div className="pb-32 min-h-screen bg-slate-50 overflow-x-hidden" onClick={() => { if(audioRef.current) audioRef.current.play().then(() => audioRef.current.pause()).catch(() => {})}}>
-                    {/* Header */}
+                    {/* Responsive Header */}
                     <div className="bg-slate-900 text-white px-5 sm:px-8 pt-10 pb-20 rounded-b-[2.5rem] shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-8 opacity-10">
                             <Icon name="zap" size={120} />
@@ -496,6 +521,7 @@
                         </div>
                     </div>
 
+                    {/* Network Status Alert */}
                     {networkLocked && (
                         <div className="mx-5 sm:mx-8 -mt-8 relative z-20 max-w-lg mx-auto">
                             <div className="bg-red-500/10 border-l-4 border-red-500 text-red-600 p-4 rounded-2xl flex items-center justify-between">
@@ -506,33 +532,38 @@
                                         <p className="text-[10px] font-bold">Orders paused • Locked for {lockDuration}</p>
                                     </div>
                                 </div>
+                                <button 
+                                    onClick={() => setShowLockConfirm(true)}
+                                    className="text-red-600 hover:text-red-700 font-black text-xs px-3 py-1.5 bg-red-100 rounded-lg active:scale-90 transition-all"
+                                >
+                                    Unlock
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Tab Bar - SCROLLABLE WITH MORE SPACE */}
-                    <div className="px-2 sm:px-4 -mt-10 flex gap-1 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
+                    {/* Responsive Tab Bar */}
+                    <div className="px-5 sm:px-8 -mt-10 flex gap-2 overflow-x-auto no-scrollbar py-2 relative z-20 max-w-lg mx-auto">
                         {[
                             { id: 'pending', label: 'Incoming', icon: 'zap' },
                             { id: 'history', label: 'History', icon: 'history' },
-                            { id: 'withdrawals', label: 'Withdrawals', icon: 'send' },
-                            { id: 'users', label: 'Users', icon: 'user' },
                             { id: 'stats', label: 'Stats', icon: 'trending' },
+                            { id: 'users', label: 'Users', icon: 'user' },
+                            { id: 'settings', label: 'Settings', icon: 'settings' }
                         ].map(tab => (
                             <button 
                                 key={tab.id}
                                 onClick={() => changeTab(tab.id)}
-                                className={`flex items-center gap-1.5 px-3 py-3 rounded-2xl font-black text-[9px] uppercase transition-all shadow-md shrink-0 active:scale-95 whitespace-nowrap ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}
+                                className={`flex items-center gap-2 px-5 py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md shrink-0 active:scale-95 ${activeTab === tab.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500'}`}
                             >
-                                <Icon name={tab.icon} size={12} />
+                                <Icon name={tab.icon} size={14} />
                                 {tab.label}
-                                {tab.id === 'pending' && pending.length > 0 && <span className="w-1.5 h-1.5 bg-red-500 rounded-full ml-1"></span>}
-                                {tab.id === 'withdrawals' && pendingWithdrawals.length > 0 && <span className="w-1.5 h-1.5 bg-orange-500 rounded-full ml-1"></span>}
+                                {tab.id === 'pending' && pending.length > 0 && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
                             </button>
                         ))}
                     </div>
 
-                    <main className="mt-6 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
+                    <main className="mt-8 px-5 sm:px-8 space-y-4 max-w-lg mx-auto">
                         {activeTab === 'pending' && (
                             pending.length === 0 ? (
                                 <div className="text-center py-20 opacity-30 font-bold italic text-sm">No new orders.</div>
@@ -541,11 +572,8 @@
                                     <div key={order.id} className="action-card p-5 sm:p-6 animate-slide border-l-8 border-indigo-600">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex-1 pr-2">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-2 py-1 rounded uppercase">{order.bundleName}</span>
-                                                    {order.resellerId && <span className="bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-1 rounded uppercase">📊 Reseller</span>}
-                                                </div>
-                                                <h3 className="text-xl sm:text-2xl font-black mono mt-1 break-all">{order.recipientNumber}</h3>
+                                                <span className="bg-slate-100 text-slate-600 text-[8px] font-black px-2 py-1 rounded uppercase">{order.bundleName}</span>
+                                                <h3 className="text-xl sm:text-2xl font-black mono mt-2 break-all">{order.recipientNumber}</h3>
                                                 <p className="text-[9px] text-slate-400 font-bold mt-1">Requested at {formatTime(order.timestamp)}</p>
                                             </div>
                                             <button 
@@ -568,6 +596,7 @@
 
                         {activeTab === 'history' && (
                             <div className="space-y-6">
+                                {/* In Progress Section */}
                                 {processing.length > 0 && (
                                     <div className="space-y-3">
                                         <div className="flex items-center gap-2 px-1">
@@ -580,7 +609,6 @@
                                                     <div className="flex-1">
                                                         <p className="font-black text-slate-900 text-lg mono tracking-tighter break-all">{order.recipientNumber}</p>
                                                         <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{order.bundleName} • ₵{order.price}</p>
-                                                        {order.resellerId && <p className="text-[8px] text-blue-600 font-bold mt-1">📊 Via Reseller</p>}
                                                     </div>
                                                     <button 
                                                         onClick={() => handleCopy(order.recipientNumber, order.id)}
@@ -600,6 +628,7 @@
                                     </div>
                                 )}
 
+                                {/* Completed Section */}
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center mb-2 px-1">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Completed Orders</p>
@@ -629,63 +658,6 @@
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'withdrawals' && (
-                            <div className="space-y-4">
-                                <h2 className="text-xl font-black text-slate-900 mb-4">Withdrawal Requests</h2>
-                                {pendingWithdrawals.length === 0 ? (
-                                    <div className="text-center py-20 opacity-30 font-bold italic text-sm">No pending withdrawals.</div>
-                                ) : (
-                                    pendingWithdrawals.map(w => (
-                                        <div key={w.id} className="action-card p-5 border-l-8 border-orange-500 animate-slide">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="flex-1">
-                                                    <p className="font-black text-slate-900">{w.resellerName}</p>
-                                                    <p className="text-[10px] font-bold text-slate-600 mt-2">💰 Amount: <span className="font-black text-orange-600">₵{w.amount?.toFixed(2)}</span></p>
-                                                    <p className="text-[9px] font-bold text-slate-500 mt-1">📱 MoMo: {w.momoNumber}</p>
-                                                    <p className="text-[9px] font-bold text-slate-500">👤 Name: {w.withdrawalName}</p>
-                                                    <p className="text-[8px] text-slate-400 font-bold mt-2">Requested: {formatDateFull(w.requestedAt)}</p>
-                                                </div>
-                                                <button 
-                                                    onClick={() => {
-                                                        setSelectedWithdrawal(w);
-                                                        setShowWithdrawalModal(true);
-                                                    }}
-                                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-black text-[10px] uppercase hover:bg-indigo-700 active:scale-90 shrink-0"
-                                                >
-                                                    Process
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        )}
-
-                        {activeTab === 'users' && (
-                            <div className="space-y-3">
-                                {users.length === 0 ? (
-                                    <div className="text-center py-20 opacity-30 font-bold italic text-sm">No users yet.</div>
-                                ) : (
-                                    users.map(u => (
-                                        <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-200 active:bg-slate-50 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center font-black text-sm uppercase">{u.name?.[0] || 'U'}</div>
-                                                <div>
-                                                    <p className="font-black text-slate-900 text-sm truncate max-w-[120px]">{u.name || 'User'}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 mono">{u.phone}</p>
-                                                    {u.isReseller && <p className="text-[8px] text-indigo-600 font-bold mt-0.5">🚀 RESELLER</p>}
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-black text-emerald-600 text-sm">₵{u.walletBalance?.toFixed(2)}</p>
-                                                {u.resellerEarnings > 0 && <p className="text-[8px] font-black text-orange-600 mt-1">Earnings: ₵{u.resellerEarnings?.toFixed(2)}</p>}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
                             </div>
                         )}
 
@@ -724,41 +696,134 @@
                                 </div>
                             </div>
                         )}
-                    </main>
 
-                    {/* Withdrawal Modal */}
-                    {showWithdrawalModal && selectedWithdrawal && (
-                        <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-6 backdrop-blur-sm">
-                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm space-y-6 shadow-2xl">
-                                <h2 className="text-2xl font-black text-slate-900 text-center">Process Withdrawal</h2>
-                                <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl space-y-2 text-sm">
-                                    <p className="font-bold"><span className="font-black">Reseller:</span> {selectedWithdrawal.resellerName}</p>
-                                    <p className="font-bold"><span className="font-black">Amount:</span> ₵{selectedWithdrawal.amount?.toFixed(2)}</p>
-                                    <p className="font-bold"><span className="font-black">MoMo:</span> {selectedWithdrawal.momoNumber}</p>
-                                    <p className="font-bold"><span className="font-black">Name:</span> {selectedWithdrawal.withdrawalName}</p>
+                        {activeTab === 'users' && (
+                            <div className="space-y-3">
+                                {users.map(u => (
+                                    <div key={u.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-200 active:bg-slate-50 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-xl flex items-center justify-center font-black text-sm uppercase">{u.name?.[0] || 'U'}</div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-sm truncate max-w-[120px]">{u.name || 'User'}</p>
+                                                <p className="text-[9px] font-bold text-slate-400 mono">{u.phone}</p>
+                                            </div>
+                                        </div>
+                                        <p className="font-black text-emerald-600 text-sm shrink-0">₵{u.walletBalance?.toFixed(2)}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {activeTab === 'settings' && (
+                            <div className="space-y-6 pb-10">
+                                <div className="text-center mb-8">
+                                    <Icon name="settings" size={40} className="mx-auto text-slate-400 mb-3" />
+                                    <h2 className="text-2xl font-black text-slate-900">Admin Settings</h2>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">Control system access & operations</p>
                                 </div>
-                                <div className="space-y-3">
+
+                                {/* Network Lock Control */}
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200 space-y-6">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <Icon name={networkLocked ? "lock" : "unlock"} size={24} className={networkLocked ? "text-red-500" : "text-emerald-500"} />
+                                            <div className="flex-1">
+                                                <h3 className="font-black text-slate-900 uppercase text-sm">Network Control</h3>
+                                                <p className="text-[9px] text-slate-400 font-bold">Lock/unlock customer ordering system</p>
+                                            </div>
+                                        </div>
+
+                                        <div className={`p-4 rounded-2xl ${networkLocked ? 'bg-red-50 border-l-4 border-red-500' : 'bg-emerald-50 border-l-4 border-emerald-500'}`}>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className={`text-sm font-black uppercase ${networkLocked ? 'text-red-600' : 'text-emerald-600'}`}>
+                                                    {networkLocked ? '🔒 System Locked' : '✓ System Active'}
+                                                </span>
+                                                <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg ${networkLocked ? 'bg-red-200 text-red-700' : 'bg-emerald-200 text-emerald-700'}`}>
+                                                    {networkLocked ? 'ACCEPTING NO ORDERS' : 'ACCEPTING ORDERS'}
+                                                </span>
+                                            </div>
+                                            
+                                            {networkLocked && lockDuration && (
+                                                <p className="text-[10px] font-bold text-slate-600 mb-3">
+                                                    ⏱️ Locked for: <span className="font-black text-red-600">{lockDuration}</span>
+                                                </p>
+                                            )}
+
+                                            <p className="text-[9px] text-slate-600 font-bold mb-4">
+                                                {networkLocked 
+                                                    ? 'Your customers cannot place orders or access the shop. The site displays a "Network Down" message.'
+                                                    : 'Your customers can access the shop and place orders normally.'}
+                                            </p>
+
+                                            <button 
+                                                onClick={() => setShowLockConfirm(true)}
+                                                disabled={lockingNetwork}
+                                                className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase transition-all shadow-md active:scale-95 ${networkLocked ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                            >
+                                                {lockingNetwork ? 'Updating...' : (networkLocked ? '🔓 Unlock Network' : '🔒 Lock Network')}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-slate-200">
+                                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">💡 Pro Tip</p>
+                                        <p className="text-[10px] text-slate-600 font-bold mt-1.5 leading-relaxed">
+                                            Lock the network when your manual ordering service is down or unavailable. Your customers will see a notification to try again later.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* System Info */}
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200 space-y-4">
+                                    <h3 className="font-black text-slate-900 uppercase text-sm">System Status</h3>
+                                    
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                                            <span className="text-[9px] font-bold text-slate-600 uppercase">Orders in Queue</span>
+                                            <span className="text-lg font-black text-indigo-600">{pending.length}</span>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                                            <span className="text-[9px] font-bold text-slate-600 uppercase">In Progress</span>
+                                            <span className="text-lg font-black text-amber-600">{processing.length}</span>
+                                        </div>
+                                        
+                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                                            <span className="text-[9px] font-bold text-slate-600 uppercase">Completed Today</span>
+                                            <span className="text-lg font-black text-emerald-600">{history.length}</span>
+                                        </div>
+
+                                        <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
+                                            <span className="text-[9px] font-bold text-slate-600 uppercase">Total Users</span>
+                                            <span className="text-lg font-black text-blue-600">{users.length}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Danger Zone */}
+                                <div className="bg-red-50 p-6 rounded-[2.5rem] border-2 border-red-200 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="alert" size={20} className="text-red-500" />
+                                        <h3 className="font-black text-red-600 uppercase text-sm">Danger Zone</h3>
+                                    </div>
+                                    
                                     <button 
-                                        onClick={() => processWithdrawal(selectedWithdrawal.id)}
-                                        className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-sm hover:bg-emerald-700"
+                                        onClick={() => { if(confirm("Clear all order history? This cannot be undone.")) clearAllHistory() }}
+                                        className="w-full py-3 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase transition-all active:scale-95 hover:bg-red-700"
                                     >
-                                        ✓ Mark Completed
+                                        🗑️ Clear All Order History
                                     </button>
-                                    <button 
-                                        onClick={() => { setShowWithdrawalModal(false); setSelectedWithdrawal(null); }}
-                                        className="w-full py-4 bg-slate-100 text-slate-700 rounded-2xl font-black uppercase text-sm"
-                                    >
-                                        Cancel
-                                    </button>
+
+                                    <p className="text-[9px] text-red-600 font-bold">⚠️ This will delete all completed orders permanently.</p>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </main>
 
-                    {/* Lock Modal */}
+                    {/* Lock Confirmation Modal */}
                     {showLockConfirm && (
                         <div className="fixed inset-0 bg-black/50 z-[999] flex items-center justify-center p-6 backdrop-blur-sm">
-                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm space-y-6 shadow-2xl">
+                            <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm space-y-6 shadow-2xl animate-slide">
                                 <div className="flex justify-center">
                                     <div className={`w-20 h-20 rounded-full flex items-center justify-center ${networkLocked ? 'bg-emerald-100' : 'bg-red-100'}`}>
                                         <Icon name={networkLocked ? "unlock" : "lock"} size={40} className={networkLocked ? 'text-emerald-600' : 'text-red-600'} />
@@ -771,8 +836,8 @@
                                     </h2>
                                     <p className="text-sm text-slate-600 font-bold leading-relaxed">
                                         {networkLocked 
-                                            ? 'Re-enable customer ordering.'
-                                            : 'Disable customer ordering.'}
+                                            ? 'Re-enable customer ordering. Customers will be able to place orders again.'
+                                            : 'Disable customer ordering. Customers will see a "Network Down" message and cannot place orders.'}
                                     </p>
                                 </div>
 
