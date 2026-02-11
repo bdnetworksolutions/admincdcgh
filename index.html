@@ -201,26 +201,22 @@
         function App() {
             const [orders, setOrders] = useState([]);
             const [users, setUsers] = useState([]);
-            const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0 });
+            const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0, dailyTotalDataSold: 0 });
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('pending');
             const [copyFeedback, setCopyFeedback] = useState(null);
-            const [isMuted, setIsMuted] = useState(false);
+            
             const [networkLocked, setNetworkLocked] = useState(false);
             const [lockingNetwork, setLockingNetwork] = useState(false);
             const [showLockConfirm, setShowLockConfirm] = useState(false);
             const [lockDuration, setLockDuration] = useState(0);
             const [lockedAt, setLockedAt] = useState(null);
             
-            const audioRef = useRef(null);
+            
             const prevPendingCount = useRef(0);
             const dbRef = useRef(null);
 
-            // Audio Initialization for Mobile
-            useEffect(() => {
-                audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-                audioRef.current.load();
-            }, []);
+            
 
             // Handle Back Button Logic
             useEffect(() => {
@@ -294,13 +290,6 @@
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     const currentPending = data.filter(o => o.status === 'pending');
                     
-                    // Sound Alert Logic
-                    if (!loading && currentPending.length > prevPendingCount.current) {
-                        if (!isMuted && audioRef.current) {
-                            audioRef.current.play().catch(e => console.log("Audio play blocked: tap anywhere on the screen first."));
-                        }
-                    }
-                    
                     prevPendingCount.current = currentPending.length;
                     setOrders(data);
                     setLoading(false);
@@ -314,7 +303,7 @@
                     if (doc.exists()) {
                         setStats(doc.data());
                     } else {
-                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0 });
+                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0, dailyTotalDataSold: 0 });
                     }
                 });
             };
@@ -395,6 +384,7 @@
                 
                 const newTotalProfit = (stats.totalProfit || 0) + profit;
                 const newDailyUsed = (stats.dailyAmountUsed || 0) + cost;
+                const newDailyTotalDataSold = (stats.dailyTotalDataSold || 0) + gbs;
 
                 const batch = fb.writeBatch(db);
                 const orderRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'orders', order.id);
@@ -403,7 +393,8 @@
                 const statsRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin');
                 batch.update(statsRef, { 
                     totalProfit: newTotalProfit,
-                    dailyAmountUsed: newDailyUsed
+                    dailyAmountUsed: newDailyUsed,
+                    dailyTotalDataSold: newDailyTotalDataSold
                 });
 
                 await batch.commit();
@@ -413,6 +404,25 @@
                 const fb = window.FirebaseSDK;
                 const db = dbRef.current;
                 await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
+            };
+
+            
+            const isAfter9PM = () => {
+                const now = new Date();
+                return now.getHours() >= 21;
+            };
+
+            const resetDailyStats = async () => {
+                if (!isAfter9PM()) {
+                    alert("Daily reset only available after 9PM.");
+                    return;
+                }
+                const fb = window.FirebaseSDK;
+                const db = dbRef.current;
+                await fb.updateDoc(
+                    fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'),
+                    { dailyAmountUsed: 0, dailyTotalDataSold: 0 }
+                );
             };
 
             const resetDailyUsage = async () => {
@@ -473,7 +483,7 @@
             const history = orders.filter(o => o.status === 'delivered');
 
             return (
-                <div className="pb-32 min-h-screen bg-slate-50 overflow-x-hidden" onClick={() => { if(audioRef.current) audioRef.current.play().then(() => audioRef.current.pause()).catch(() => {})}}>
+                <div className="pb-32 min-h-screen bg-slate-50 overflow-x-hidden" >
                     {/* Responsive Header */}
                     <div className="bg-slate-900 text-white px-5 sm:px-8 pt-10 pb-20 rounded-b-[2.5rem] shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-8 opacity-10">
@@ -496,12 +506,7 @@
                                     >
                                         <Icon name={networkLocked ? "lock" : "unlock"} size={18} />
                                     </button>
-                                    <button 
-                                        onClick={() => setIsMuted(!isMuted)} 
-                                        className={`p-3 rounded-2xl active:scale-90 transition-all ${isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white'}`}
-                                    >
-                                        <Icon name={isMuted ? "mute" : "volume"} size={18} />
-                                    </button>
+                                    
                                     <button onClick={() => window.location.reload()} className="p-3 bg-white/10 rounded-2xl active:scale-90 transition-all">
                                         <Icon name="refresh" size={18} />
                                     </button>
@@ -675,10 +680,15 @@
                                     <div className="bg-slate-50 p-6 rounded-3xl mb-6 border border-slate-200">
                                         <div className="flex justify-between items-center mb-2">
                                             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Daily Cost Used</h3>
-                                            <button onClick={() => { if(confirm("Reset daily usage?")) resetDailyUsage() }} className="text-[8px] font-black text-indigo-600 uppercase">Reset 9PM</button>
+                                            <button onClick={() => { if(confirm("Reset daily stats?")) resetDailyStats() }} disabled={!isAfter9PM()} className="text-[8px] font-black text-indigo-600 uppercase disabled:opacity-30">Reset 9PM</button>
                                         </div>
                                         <p className="text-2xl font-black text-slate-800 mono">₵{stats.dailyAmountUsed?.toFixed(2)}</p>
                                         <p className="text-[9px] text-slate-400 font-bold mt-1">Calculated at ₵3.90 per GB</p>
+                                    <div className="bg-slate-50 p-6 rounded-3xl mb-6 border border-slate-200">
+                                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Daily Total Data Sold (GB)</h3>
+                                        <p className="text-2xl font-black text-slate-800 mono">{stats.dailyTotalDataSold?.toFixed(2)} GB</p>
+                                    </div>
+
                                     </div>
                                     
                                     {isMonday() ? (
