@@ -481,7 +481,9 @@
                 </div>
             );
 
-            const pending = orders.filter(o => o.status === 'pending');
+            // Enforce correct order flow:
+            // Any order not explicitly marked 'processing' or 'delivered' stays in Incoming
+            const pending = orders.filter(o => o.status !== 'processing' && o.status !== 'delivered');
             const processing = orders.filter(o => o.status === 'processing');
             const history = orders.filter(o => o.status === 'delivered');
 
