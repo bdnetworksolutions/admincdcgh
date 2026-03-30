@@ -196,7 +196,22 @@
         };
 
         const appId = "cheap-data-center";
-        const BASE_COST_PER_GB = 4.20;
+        const BASE_COST_PER_GB = 4.00;
+        const PRICE_LOOKUP = {
+            1: 4.20,
+            2: 8.40,
+            3: 12.60,
+            4: 16.80,
+            5: 20.80,
+            6: 25.00,
+            8: 33.50,
+            10: 40.50,
+            15: 59.00,
+            20: 78.00,
+            25: 97.00,
+            30: 117.00
+        };
+
 
         function App() {
             const [orders, setOrders] = useState([]);
@@ -380,7 +395,7 @@
                 const fb = window.FirebaseSDK;
                 const db = dbRef.current;
                 const gbs = parseFloat(order.bundleName) || 1;
-                const cost = BASE_COST_PER_GB * gbs;
+                const cost = PRICE_LOOKUP[gbs] || (BASE_COST_PER_GB * gbs);
                 const profit = order.price - cost;
                 
                 const newTotalProfit = (stats.totalProfit || 0) + profit;
@@ -481,9 +496,7 @@
                 </div>
             );
 
-            // Enforce correct order flow:
-            // Any order not explicitly marked 'processing' or 'delivered' stays in Incoming
-            const pending = orders.filter(o => o.status !== 'processing' && o.status !== 'delivered');
+            const pending = orders.filter(o => o.status === 'pending');
             const processing = orders.filter(o => o.status === 'processing');
             const history = orders.filter(o => o.status === 'delivered');
 
