@@ -216,7 +216,7 @@
         function App() {
             const [orders, setOrders] = useState([]);
             const [users, setUsers] = useState([]);
-            const [stats, setStats] = useState({ totalProfit: 0, dailyAmountUsed: 0, dailyTotalDataSold: 0 });
+            const [stats, setStats] = useState({ totalProfit: 0, totalProfitAtBase4: 0, dailyAmountUsed: 0, dailyTotalDataSold: 0 });
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('pending');
             const [copyFeedback, setCopyFeedback] = useState(null);
@@ -319,7 +319,7 @@
                     if (doc.exists()) {
                         setStats(doc.data());
                     } else {
-                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, dailyAmountUsed: 0, dailyTotalDataSold: 0 });
+                        fb.setDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0, totalProfitAtBase4: 0, dailyAmountUsed: 0, dailyTotalDataSold: 0 });
                     }
                 });
             };
@@ -397,6 +397,9 @@
                 const gbs = parseFloat(order.bundleName) || 1;
                 const cost = PRICE_LOOKUP[gbs] || (BASE_COST_PER_GB * gbs);
                 const profit = order.price - cost;
+                const profitAtBase4 = order.price - (4 * gbs);
+
+                const newTotalProfitAtBase4 = (stats.totalProfitAtBase4 || 0) + profitAtBase4;
                 
                 const newTotalProfit = (stats.totalProfit || 0) + profit;
                 const newDailyUsed = (stats.dailyAmountUsed || 0) + cost;
@@ -409,6 +412,7 @@
                 const statsRef = fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin');
                 batch.update(statsRef, { 
                     totalProfit: newTotalProfit,
+                    totalProfitAtBase4: newTotalProfitAtBase4,
                     dailyAmountUsed: newDailyUsed,
                     dailyTotalDataSold: newDailyTotalDataSold
                 });
@@ -538,6 +542,10 @@
                                 </div>
                                 <div className="bg-slate-800 p-4 sm:p-5 rounded-3xl border border-white/5">
                                     <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Profit (GH₵)</p>
+<div className="bg-slate-800 p-4 sm:p-5 rounded-3xl border border-white/5">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Profit @ ₵4/GB</p>
+                                    <p className="text-2xl sm:text-3xl font-black mono text-blue-400">{stats.totalProfitAtBase4?.toFixed(2) || "0.00"}</p>
+                                </div>
                                     <p className="text-2xl sm:text-3xl font-black mono text-emerald-400">{stats.totalProfit?.toFixed(2)}</p>
                                 </div>
                             </div>
