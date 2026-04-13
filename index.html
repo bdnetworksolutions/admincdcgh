@@ -426,7 +426,15 @@
                 await fb.updateDoc(fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'), { totalProfit: 0 });
             };
 
-            
+            const resetProfitAtBase4 = async () => {
+                const fb = window.FirebaseSDK;
+                const db = dbRef.current;
+                await fb.updateDoc(
+                    fb.doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'admin'),
+                    { totalProfitAtBase4: 0 }
+                );
+            };
+
             const isResetWindow = () => {
                 const now = new Date();
                 const hour = now.getHours();
@@ -718,12 +726,21 @@
                                     </div>
                                     
                                     {isMonday() ? (
-                                        <button 
-                                            onClick={() => { if(confirm("Monday confirmed. Reset profit to zero?")) resetProfit() }}
-                                            className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-slate-200"
-                                        >
-                                            Reset Weekly Profit
-                                        </button>
+                                        <>
+                                            <button 
+                                                onClick={() => { if(confirm("Monday confirmed. Reset profit to zero?")) resetProfit() }}
+                                                className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-slate-200"
+                                            >
+                                                Reset Weekly Profit
+                                            </button>
+
+                                            <button 
+                                                onClick={() => { if(confirm("Monday confirmed. Reset ₵4/GB profit to zero?")) resetProfitAtBase4() }}
+                                                className="w-full py-5 bg-blue-600 text-white rounded-3xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-blue-200 mt-3"
+                                            >
+                                                Reset ₵4/GB Profit
+                                            </button>
+                                        </>
                                     ) : (
                                         <div className="p-5 bg-slate-50 rounded-3xl border border-dashed border-slate-200 text-center">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed">Weekly Reset available every Monday</p>
